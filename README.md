@@ -1,8 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Discord Clone
+
+A Discord clone built with Next.js 15, TypeScript, Prisma, and Clerk authentication.
+
+## Features
+
+- Real-time messaging
+- Server creation and management
+- User authentication with Clerk
+- Database with Prisma ORM
+- Modern UI with Tailwind CSS
+- File uploads
+- Voice and video calls
+
+## Tech Stack
+
+- **Framework:** Next.js 15
+- **Language:** TypeScript
+- **Database:** MySQL with Prisma ORM
+- **Authentication:** Clerk
+- **Styling:** Tailwind CSS
+- **UI Components:** shadcn/ui
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ 
+- MySQL database (XAMPP recommended for local development)
+- Clerk account for authentication
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/discord-baro.git
+cd discord-baro
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
+Edit `.env.local` with your actual values.
+
+4. Set up the database:
+```bash
+npx prisma generate
+npx prisma db push
+```
+
+5. Run the development server:
 
 ```bash
 npm run dev
