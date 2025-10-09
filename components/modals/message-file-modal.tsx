@@ -25,23 +25,28 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ServerImageUpload } from "../upload/server-image-upload";
 import { useRouter } from "next/navigation";
+import { useModal } from "@/hooks/use-modal-store";
 
 const formSchema = z.object({
-    name: z.string().min(1, { message: "Server name is required" }).max(100, { message: "Server name must be less than 100 characters" }),
     imageUrl: z.string().min(1, { message: "Image URL is required" }).url({ message: "Invalid URL" }),
 });
 
-export const InitialModal = () => {
-    const [isOpen, setIsOpen] = useState(true);
+export const MessageFileModal = () => {
+    const { isOpen, onClose, type, data } = useModal();
     
+    const isModalOpen = isOpen && type === "messageFile";
     const router = useRouter();
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            name: "",
             imageUrl: ""
         },
     });
+
+    const handleClose = () => {
+        form.reset();
+        onClose();
+    };
 
     const isLoading = form.formState.isSubmitting;
     
@@ -58,14 +63,14 @@ export const InitialModal = () => {
         }
     };
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isModalOpen} onOpenChange={onClose}>
             <DialogContent className="bg-white text-black p-0 overflow-hidden">
                 <DialogHeader className="pt-8 px-6">
                     <DialogTitle className="text-2xl text-center">
-                        Customize your server
+                        Add a message attachment
                     </DialogTitle>
                     <DialogDescription className="text-center text-zinc-500">
-                        Give your new server a personality with a name and image. You can always change it later.
+                        Send a file as a message
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -87,34 +92,10 @@ export const InitialModal = () => {
                                     )}
                                 />
                             </div>
-                            <FormField
-                                control={form.control}
-                                name="name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel
-                                            className="uppercase text-xs font-bold text-zinc-500 
-                                            dark:text-secondary/70"
-                                            >
-                                            Server Name
-                                        </FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                disabled={isLoading}
-                                                className="bg-zinc-300/50 border-0 focus-visible:ring-0 text-black focus-visible:ring-offset-0"
-                                                placeholder="Enter server name"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-
-                            />
                         </div>
                         <DialogFooter className="bg-gray-100 px-6 py-4">
                             <Button disabled={isLoading} variant="primary">
-                                Create
+                                Send
                             </Button>
                         </DialogFooter>
                     </form>

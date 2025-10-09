@@ -25,14 +25,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ServerImageUpload } from "../upload/server-image-upload";
 import { useRouter } from "next/navigation";
+import { useModal } from "@/hooks/use-modal-store";
 
 const formSchema = z.object({
     name: z.string().min(1, { message: "Server name is required" }).max(100, { message: "Server name must be less than 100 characters" }),
     imageUrl: z.string().min(1, { message: "Image URL is required" }).url({ message: "Invalid URL" }),
 });
 
-export const InitialModal = () => {
-    const [isOpen, setIsOpen] = useState(true);
+export const CreateServerModal = () => {
+    const { isOpen, onClose, type} = useModal();
     
     const router = useRouter();
     const form = useForm({
@@ -45,12 +46,19 @@ export const InitialModal = () => {
 
     const isLoading = form.formState.isSubmitting;
     
+    const isModalOpen = isOpen && type === "createServer";
+
+    const handleClose = () => {
+        form.reset();
+        onClose();
+    };
+    
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         try {
             await axios.post('/api/servers', values);
             form.reset();
             router.refresh();
-            window.location.reload();
+            onClose();
         }
         catch (error) {
             console.error("Error creating server:", error);
@@ -58,7 +66,7 @@ export const InitialModal = () => {
         }
     };
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isModalOpen} onOpenChange={handleClose} >
             <DialogContent className="bg-white text-black p-0 overflow-hidden">
                 <DialogHeader className="pt-8 px-6">
                     <DialogTitle className="text-2xl text-center">

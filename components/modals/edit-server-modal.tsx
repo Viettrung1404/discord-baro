@@ -2,7 +2,7 @@
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import {
     Dialog,
@@ -25,16 +25,23 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ServerImageUpload } from "../upload/server-image-upload";
 import { useRouter } from "next/navigation";
+import { useModal } from "@/hooks/use-modal-store";
 
 const formSchema = z.object({
     name: z.string().min(1, { message: "Server name is required" }).max(100, { message: "Server name must be less than 100 characters" }),
     imageUrl: z.string().min(1, { message: "Image URL is required" }).url({ message: "Invalid URL" }),
 });
 
-export const InitialModal = () => {
-    const [isOpen, setIsOpen] = useState(true);
+export const EditServerModal = () => {
+    const { isOpen, onClose, type, data} = useModal();
     
     const router = useRouter();
+
+    const isModalOpen = isOpen && type === "editServer";
+
+    const { server} = data;
+
+
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -43,14 +50,26 @@ export const InitialModal = () => {
         },
     });
 
+    useEffect(() => {
+        if (server) {
+            form.setValue("name", server.name);
+            form.setValue("imageUrl", server.imageUrl);
+        }
+    }, [server, form]);
     const isLoading = form.formState.isSubmitting;
+    
+
+    const handleClose = () => {
+        form.reset();
+        onClose();
+    };
     
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         try {
-            await axios.post('/api/servers', values);
+            await axios.patch(`/api/servers/${server?.id}`, values);
             form.reset();
             router.refresh();
-            window.location.reload();
+            onClose();
         }
         catch (error) {
             console.error("Error creating server:", error);
@@ -58,7 +77,7 @@ export const InitialModal = () => {
         }
     };
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isModalOpen} onOpenChange={handleClose} >
             <DialogContent className="bg-white text-black p-0 overflow-hidden">
                 <DialogHeader className="pt-8 px-6">
                     <DialogTitle className="text-2xl text-center">
@@ -114,7 +133,7 @@ export const InitialModal = () => {
                         </div>
                         <DialogFooter className="bg-gray-100 px-6 py-4">
                             <Button disabled={isLoading} variant="primary">
-                                Create
+                                Save
                             </Button>
                         </DialogFooter>
                     </form>

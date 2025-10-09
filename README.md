@@ -26,7 +26,7 @@ A Discord clone built with Next.js 15, TypeScript, Prisma, and Clerk authenticat
 ### Prerequisites
 
 - Node.js 18+ 
-- MySQL database (XAMPP recommended for local development)
+- Docker và Docker Compose
 - Clerk account for authentication
 
 ### Installation
@@ -48,13 +48,52 @@ cp .env.example .env.local
 ```
 Edit `.env.local` with your actual values.
 
-4. Set up the database:
+4. Start Docker services (PostgreSQL + MinIO):
 ```bash
-npx prisma generate
-npx prisma db push
+npm run docker:up
 ```
 
-5. Run the development server:
+5. Set up the database:
+```bash
+npm run db:migrate
+```
+
+6. Run the development server:
+```bash
+npm run dev
+```
+
+Or run everything at once:
+```bash
+npm run dev:full
+```
+
+## Docker Services
+
+This project uses Docker Compose to run:
+- **PostgreSQL**: Database on port 5432
+- **MinIO**: Object storage on port 9000 (API) and 9001 (Console)
+
+### Docker Commands
+
+```bash
+# Start all services
+npm run docker:up
+
+# Stop all services  
+npm run docker:down
+
+# View logs
+npm run docker:logs
+
+# Restart services
+npm run docker:restart
+```
+
+### MinIO Console
+Access MinIO console at: http://localhost:9001
+- Username: `minioadmin`
+- Password: `minioadmin123`
 
 ```bash
 npm run dev
