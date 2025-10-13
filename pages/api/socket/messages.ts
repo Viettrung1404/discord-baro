@@ -1,7 +1,8 @@
 import { currentProfilePages } from '@/lib/current-profile-pages';
 import { db } from '@/lib/db';
-import { NextApiRequest } from 'next';
-import { NextApiResponseServerIo } from '@/type';
+import type { NextApiRequest } from 'next';
+import type { NextApiResponseServerIo } from '@/type';
+import { emitChannelMessage } from '@/lib/socket/server';
 
 export default async function handler (
     req: NextApiRequest,
@@ -75,11 +76,11 @@ export default async function handler (
                         profile: true
                     }
                 },
+                channel: true,
             }
         });
 
-    const channelKey = `chat:${channel.id}:messages`;
-    res.socket.server.io?.emit(channelKey, message);
+        emitChannelMessage(channel.id, message);
 
         return res.status(200).json(message);
     }

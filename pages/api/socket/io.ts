@@ -1,9 +1,9 @@
 import { Server as NetServer } from "http";
-import { NextApiRequest } from "next";
+import type { NextApiRequest } from "next";
 
-import { Server as ServerIO } from "socket.io"; 
-import { NextApiResponseServerIo } from "@/type";
-import { Server } from "lucide-react";
+import { initSocketServer } from "@/lib/socket/server";
+import { SOCKET_PATH } from "@/lib/socket/constants";
+import type { NextApiResponseServerIo } from "@/type";
 
 export const config = {
     api: {
@@ -11,18 +11,14 @@ export const config = {
     },
 };
 
-const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
+const ioHandler = (_req: NextApiRequest, res: NextApiResponseServerIo) => {
     if (!res.socket.server.io) {
-        const path = "/api/socket/io";
-        const httpServer: NetServer = res.socket.server as any;
-        const io = new ServerIO(httpServer, {
-            path: path,
-            addTrailingSlash: false,
-        });
+        const httpServer = res.socket.server as unknown as NetServer;
+        const io = initSocketServer(httpServer);
         res.socket.server.io = io;
     }
 
-    res.status(200).json({ success: true });
-}
+    res.status(200).json({ success: true, path: SOCKET_PATH });
+};
 
 export default ioHandler;
