@@ -3,6 +3,8 @@ import { redirect } from "next/dist/client/components/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateConversation } from "@/lib/conversation";
 import { ChatHeader } from "@/components/chat/chat-header";
+import { ChatMessages } from "@/components/chat/chat-messages";
+import { ChatInput } from "@/components/chat/chat-input";
 interface MemberIdPage {
     params: {
         memberId: string;
@@ -49,6 +51,23 @@ const MemberIdPage = async ({
                 name={otherMember.profile.name || "Unknown"}
                 serverId={params.serverId}
                 type="conversation"
+            />
+            <ChatMessages
+                member={currentMeber}
+                name={otherMember.profile.name || "Unknown"}
+                apiUrl="/api/direct-messages"
+                paramKey="conversationId"
+                paramValue={conversation.id}
+                chatId={conversation.id}
+                socketUrl="/api/socket/direct-messages"
+                socketQuery={{ conversationId: conversation.id }}
+                type="conversation"
+            />
+            <ChatInput
+                name={otherMember.profile.name || "Unknown"}
+                type="conversation"
+                apiUrl="/api/socket/direct-messages"
+                query={{ conversationId: conversation.id }}
             />
         </div>
     );

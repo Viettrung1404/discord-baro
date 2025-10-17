@@ -95,12 +95,25 @@ export const uploadFileAdvanced = async (
     // Upload main file
     await ensureBucketExists(bucketName);
     
+    // Sanitize metadata values - encode to base64 for safety
+    const sanitizeMetadataValue = (value: string): string => {
+      // Remove or encode special characters that are not allowed in HTTP headers
+      // Use base64 encoding for non-ASCII characters
+      try {
+        return Buffer.from(value).toString('base64');
+      } catch {
+        return value.replace(/[^\x20-\x7E]/g, ''); // Remove non-ASCII chars as fallback
+      }
+    };
+
     const uploadMetadata = {
       'Content-Type': contentType,
-      'Original-Name': originalFileName,
+      'Original-Name': sanitizeMetadataValue(originalFileName),
       'Upload-Time': new Date().toISOString(),
       'File-Size': fileSize.toString(),
-      ...metadata,
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [key, sanitizeMetadataValue(value)])
+      ),
       ...processedMetadata
     };
 

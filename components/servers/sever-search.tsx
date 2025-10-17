@@ -14,8 +14,7 @@ interface ServerSearchProps {
         }[] | undefined;
     }[];
 }
-import { CommandDialog, CommandEmpty, CommandItem } from "@/components/ui/command";
-import { CommandGroup, CommandInput, CommandList } from "cmdk";
+import { CommandDialog, CommandEmpty, CommandItem, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { useParams, useRouter } from "next/navigation";
 export const ServerSearch = ({
     data
@@ -35,10 +34,10 @@ export const ServerSearch = ({
     const onClick = ({id, type} : {id:string, type: "channel" | "member"}) => {
         setOpen(false);
         if (type === "member") {
-            return router.push(`/servers/${params.serverId}/conversations/${id}`)
+            return router.push(`/servers/${params?.serverId}/conversations/${id}`)
         }
         if (type === "channel") {
-            return router.push(`/servers/${params.serverId}/channels/${id}`)
+            return router.push(`/servers/${params?.serverId}/channels/${id}`)
         }
 
     }
