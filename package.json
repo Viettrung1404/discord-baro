@@ -17,6 +17,8 @@
   "dependencies": {
     "@clerk/nextjs": "^6.31.9",
     "@hookform/resolvers": "^5.2.1",
+    "@livekit/components-react": "^2.9.15",
+    "@livekit/components-styles": "^1.1.6",
     "@next/font": "^14.2.15",
     "@prisma/client": "^6.15.0",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -38,6 +40,8 @@
     "date-fns": "^4.1.0",
     "emoji-picker-react": "^4.14.1",
     "geist": "^1.5.1",
+    "livekit-client": "^2.15.11",
+    "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.542.0",
     "minio": "^8.0.5",
     "next": "^15.5.2",

@@ -1,10 +1,16 @@
-import type { Channel, Member, MemberRole, Message, Profile } from "@prisma/client";
+import type { Channel, Member, MemberRole, Message, DirectMessage, Profile } from "@prisma/client";
 
 export type MessageWithMember = Message & {
   member: Member & {
     profile: Profile;
   };
   channel: Channel;
+};
+
+export type DirectMessageWithMember = DirectMessage & {
+  member: Member & {
+    profile: Profile;
+  };
 };
 
 export type PresenceUser = {
@@ -50,6 +56,9 @@ export type ClientToServerEvents = {
   "chat:leave": (payload: {
     serverId: string;
     channelId: string;
+  }) => void;
+  "conversation:join": (payload: {
+    conversationId: string;
   }) => void;
   "chat:typing": (payload: {
     channelId: string;

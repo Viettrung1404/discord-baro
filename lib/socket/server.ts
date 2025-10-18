@@ -114,6 +114,7 @@ const registerMiddleware = (io: TypedIOServer) => {
 const registerCoreEvents = (io: TypedIOServer) => {
   io.on("connection", (socket: TypedSocket) => {
     const profileId = socket.data.profileId;
+    console.log(`[SOCKET] 🔌 New connection from profileId: ${profileId}, socketId: ${socket.id}`);
 
     socket.on(SOCKET_EVENTS.CHAT_JOIN, async ({ serverId, channelId }: ChatJoinPayload) => {
       try {
@@ -165,6 +166,47 @@ const registerCoreEvents = (io: TypedIOServer) => {
       socket.data.channelIds.delete(channelId);
       presenceManager.leaveChannel(channelId, profileId);
       emitPresenceUpdateForSocket(socket, channelId);
+    });
+
+    // Handle conversation join (for direct messages)
+    socket.on("conversation:join", async ({ conversationId }: { conversationId: string }) => {
+      try {
+        console.log(`[SOCKET] User ${profileId} attempting to join conversation ${conversationId}`);
+        
+        // Verify user is part of this conversation
+        const conversation = await db.conversation.findFirst({
+          where: {
+            id: conversationId,
+            OR: [
+              {
+                memberOne: {
+                  profileId,
+                }
+              },
+              {
+                memberTwo: {
+                  profileId,
+                }
+              }
+            ]
+          }
+        });
+
+        if (!conversation) {
+          console.log(`[SOCKET] User ${profileId} NOT authorized for conversation ${conversationId}`);
+          return;
+        }
+
+        // Join the conversation room
+        const conversationRoom = `conversation:${conversationId}`;
+        socket.join(conversationRoom);
+        console.log(`[SOCKET] ✅ User ${profileId} joined room: ${conversationRoom}`);
+        
+        // Log all rooms this socket is in
+        console.log(`[SOCKET] Socket rooms:`, Array.from(socket.rooms));
+      } catch (error) {
+        console.error("[SOCKET] Failed to join conversation:", error);
+      }
     });
 
     socket.on(SOCKET_EVENTS.CHAT_TYPING, ({ channelId, isTyping }: ChatTypingPayload) => {

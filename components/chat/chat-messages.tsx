@@ -60,7 +60,8 @@ export const ChatMessages = ({
     // Listen for real-time messages via Socket.IO
     useChatSocket({
         queryKey,
-        channelId: paramKey === "channelId" ? paramValue : undefined,
+        channelId: paramValue, // Use paramValue as channelId (works for both channel and conversation)
+        serverId: socketQuery.serverId, // Only present for channels, undefined for conversations
     });
 
     // Auto-scroll to bottom on new messages
