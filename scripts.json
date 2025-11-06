@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "db:migrate": "npx prisma generate && npx prisma db push",
+    "db:studio": "npx prisma studio",
+    "dev:full": "npm run docker:up && npm run db:migrate && npm run dev"
+  }
+}

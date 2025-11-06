@@ -3,6 +3,7 @@ import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
+import axios from "axios";
 import {
     Dialog,
     DialogContent,
@@ -22,7 +23,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
+import { ServerImageUpload } from "../upload/server-image-upload";
+import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
     name: z.string().min(1, { message: "Server name is required" }).max(100, { message: "Server name must be less than 100 characters" }),
@@ -32,6 +34,7 @@ const formSchema = z.object({
 export const InitialModal = () => {
     const [isOpen, setIsOpen] = useState(true);
     
+    const router = useRouter();
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -43,7 +46,16 @@ export const InitialModal = () => {
     const isLoading = form.formState.isSubmitting;
     
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
-        console.log(values);
+        try {
+            await axios.post('/api/servers', values);
+            form.reset();
+            router.refresh();
+            window.location.reload();
+        }
+        catch (error) {
+            console.error("Error creating server:", error);
+            alert("Failed to create server");
+        }
     };
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -60,7 +72,20 @@ export const InitialModal = () => {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                         <div className="space-y-8 px-6" >
                             <div className="flex items-center justify-center text-center">
-                                TODO: Image Upload
+                                <FormField
+                                    control={form.control}
+                                    name="imageUrl"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormControl>
+                                                <ServerImageUpload
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
                             <FormField
                                 control={form.control}

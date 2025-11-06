@@ -1,0 +1,320 @@
+import { Server as NetServer } from "http";
+import { Server as IOServer, Socket } from "socket.io";
+import type { NextApiRequest } from "next";
+import { currentProfilePages } from "@/lib/current-profile-pages";
+import { db } from "@/lib/db";
+import { Member, Profile } from "@prisma/client";
+import { channelRoom, serverRoom, SOCKET_EVENTS, SOCKET_PATH } from "./constants";
+import type {
+  ClientToServerEvents,
+  InterServerEvents,
+  MessageWithMember,
+  PresenceUser,
+  ServerToClientEvents,
+  SocketData,
+} from "./types";
+import { presenceManager } from "./presence";
+
+export type TypedIOServer = IOServer<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  InterServerEvents,
+  SocketData
+>;
+
+export type TypedSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  InterServerEvents,
+  SocketData
+>;
+
+let ioInstance: TypedIOServer | null = null;
+
+type MemberWithProfile = Member & { profile: Profile };
+
+type ChatJoinPayload = Parameters<ClientToServerEvents["chat:join"]>[0];
+type ChatLeavePayload = Parameters<ClientToServerEvents["chat:leave"]>[0];
+type ChatTypingPayload = Parameters<ClientToServerEvents["chat:typing"]>[0];
+type PresencePingPayload = Parameters<ClientToServerEvents["presence:ping"]>[0];
+type NotificationPayload = Parameters<ServerToClientEvents["notification:new"]>[0];
+type PresenceUpdatePayload = Parameters<ServerToClientEvents["presence:update"]>[0];
+type TypingBroadcastPayload = Parameters<ServerToClientEvents["chat:typing"]>[0];
+type ChatMessagePayload = Parameters<ServerToClientEvents["chat:message"]>[0];
+
+const buildPresenceUser = (member: MemberWithProfile | null): PresenceUser | null => {
+  if (!member) return null;
+  return {
+    profileId: member.profileId,
+    memberId: member.id,
+    serverId: member.serverId,
+    channelId: undefined,
+    displayName: member.profile.name ?? member.profile.email,
+    avatarUrl: member.profile.imageUrl,
+    role: member.role,
+    lastSeenAt: Date.now(),
+  };
+};
+
+const buildPresencePayload = (channelId: string): PresenceUpdatePayload => ({
+  channelId,
+  users: presenceManager.getChannelSnapshot(channelId),
+});
+
+const emitPresenceUpdateForSocket = (socket: TypedSocket, channelId: string) => {
+  const payload = buildPresencePayload(channelId);
+  socket.emit(SOCKET_EVENTS.PRESENCE_UPDATE, payload);
+  socket.to(channelRoom(channelId)).emit(SOCKET_EVENTS.PRESENCE_UPDATE, payload);
+};
+
+const parseCookies = (cookieHeader?: string): Record<string, string> => {
+  if (!cookieHeader) return {};
+
+  return cookieHeader.split(";").reduce<Record<string, string>>((acc, cookie) => {
+    const [rawName, ...rawValue] = cookie.trim().split("=");
+    if (!rawName) return acc;
+    acc[decodeURIComponent(rawName)] = decodeURIComponent(rawValue.join("="));
+    return acc;
+  }, {});
+};
+
+const registerMiddleware = (io: TypedIOServer) => {
+  io.use(async (socket, next) => {
+    try {
+      const req = socket.request as NextApiRequest & { cookies?: Record<string, string> };
+      if (!req.cookies) {
+        req.cookies = parseCookies(socket.request.headers?.cookie);
+      }
+      const profile = await currentProfilePages(req);
+      if (!profile) {
+        console.error("[SOCKET_AUTH] Missing profile for handshake", {
+          url: req.url,
+          cookies: Object.keys(req.cookies ?? {}),
+          hasCookieHeader: Boolean(socket.request.headers?.cookie),
+        });
+        return next(new Error("Unauthorized"));
+      }
+      console.info("[SOCKET_AUTH] Authenticated handshake", {
+        profileId: profile.id,
+        url: req.url,
+      });
+      socket.data.profileId = profile.id;
+      socket.data.displayName = profile.name;
+      socket.data.avatarUrl = profile.imageUrl;
+      socket.data.serverIds = new Set();
+      socket.data.channelIds = new Set();
+      return next();
+    } catch (error) {
+      console.error("[SOCKET_AUTH] Authentication failed", error);
+      return next(new Error("Authentication failed"));
+    }
+  });
+};
+
+const registerCoreEvents = (io: TypedIOServer) => {
+  io.on("connection", (socket: TypedSocket) => {
+    const profileId = socket.data.profileId;
+    console.log(`[SOCKET] 🔌 New connection from profileId: ${profileId}, socketId: ${socket.id}`);
+
+    socket.on(SOCKET_EVENTS.CHAT_JOIN, async ({ serverId, channelId }: ChatJoinPayload) => {
+      try {
+        const member = await db.member.findFirst({
+          where: {
+            serverId,
+            profileId,
+          },
+          include: {
+            profile: true,
+          },
+        });
+
+        const presenceUser = buildPresenceUser(member);
+
+        if (!member || !presenceUser) {
+          socket.emit(SOCKET_EVENTS.NOTIFICATION, {
+            serverId,
+            channelId,
+            messageId: "",
+            preview: "Bạn không có quyền truy cập kênh này.",
+          });
+          return;
+        }
+
+        socket.data.serverIds.add(serverId);
+        socket.data.channelIds.add(channelId);
+        presenceUser.channelId = channelId;
+
+        socket.join(serverRoom(serverId));
+        socket.join(channelRoom(channelId));
+
+        presenceManager.joinChannel(channelId, presenceUser);
+
+        emitPresenceUpdateForSocket(socket, channelId);
+      } catch (error) {
+        const notificationPayload: NotificationPayload = {
+          serverId,
+          channelId,
+          messageId: "",
+          preview: "Không thể tham gia kênh. Vui lòng thử lại.",
+        };
+        socket.emit(SOCKET_EVENTS.NOTIFICATION, notificationPayload);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.CHAT_LEAVE, ({ channelId, serverId }: ChatLeavePayload) => {
+      socket.leave(channelRoom(channelId));
+      socket.data.channelIds.delete(channelId);
+      presenceManager.leaveChannel(channelId, profileId);
+      emitPresenceUpdateForSocket(socket, channelId);
+    });
+
+    // Handle conversation join (for direct messages)
+    socket.on("conversation:join", async ({ conversationId }: { conversationId: string }) => {
+      try {
+        console.log(`[SOCKET] User ${profileId} attempting to join conversation ${conversationId}`);
+        
+        // Verify user is part of this conversation
+        const conversation = await db.conversation.findFirst({
+          where: {
+            id: conversationId,
+            OR: [
+              {
+                memberOne: {
+                  profileId,
+                }
+              },
+              {
+                memberTwo: {
+                  profileId,
+                }
+              }
+            ]
+          }
+        });
+
+        if (!conversation) {
+          console.log(`[SOCKET] User ${profileId} NOT authorized for conversation ${conversationId}`);
+          return;
+        }
+
+        // Join the conversation room
+        const conversationRoom = `conversation:${conversationId}`;
+        socket.join(conversationRoom);
+        console.log(`[SOCKET] ✅ User ${profileId} joined room: ${conversationRoom}`);
+        
+        // Log all rooms this socket is in
+        console.log(`[SOCKET] Socket rooms:`, Array.from(socket.rooms));
+      } catch (error) {
+        console.error("[SOCKET] Failed to join conversation:", error);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.CHAT_TYPING, ({ channelId, isTyping }: ChatTypingPayload) => {
+      presenceManager.touch(channelId, profileId);
+      const typingPayload: TypingBroadcastPayload = {
+        channelId,
+        profileId,
+        displayName: socket.data.displayName ?? "Ẩn danh",
+        isTyping,
+        emittedAt: Date.now(),
+      };
+      socket.broadcast.to(channelRoom(channelId)).emit(SOCKET_EVENTS.CHAT_TYPING, typingPayload);
+    });
+
+    socket.on(SOCKET_EVENTS.PRESENCE_PING, ({ channels }: PresencePingPayload) => {
+      channels.forEach((channelId) => presenceManager.touch(channelId, profileId));
+    });
+
+    socket.on("disconnect", () => {
+      presenceManager.removeProfile(profileId);
+      socket.data.channelIds.forEach((channelId) => {
+        const payload = buildPresencePayload(channelId);
+        socket.to(channelRoom(channelId)).emit(SOCKET_EVENTS.PRESENCE_UPDATE, payload);
+      });
+    });
+  });
+};
+
+export const initSocketServer = (httpServer: NetServer): TypedIOServer => {
+  if (ioInstance) {
+    return ioInstance;
+  }
+
+  ioInstance = new IOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
+    path: SOCKET_PATH,
+    addTrailingSlash: false,
+    transports: ["websocket"],
+    pingTimeout: 20000,
+    pingInterval: 20000,
+    cors: {
+      origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      credentials: true,
+    },
+  });
+
+  ioInstance.engine.on("connection_error", (error) => {
+    console.warn("[SOCKET_ENGINE] Connection warning", {
+      code: error.code,
+      message: error.message,
+      context: error.context,
+    });
+  });
+
+  registerMiddleware(ioInstance);
+  registerCoreEvents(ioInstance);
+
+  return ioInstance;
+};
+
+export const getIO = (): TypedIOServer => {
+  if (!ioInstance) {
+    throw new Error("Socket server has not been initialized yet.");
+  }
+  return ioInstance;
+};
+
+export const emitServerNotification = (payload: NotificationPayload) => {
+  const io = ioInstance;
+  if (!io) {
+    return;
+  }
+  io.to(serverRoom(payload.serverId)).emit(SOCKET_EVENTS.NOTIFICATION, payload);
+};
+
+export const emitChannelPresenceSnapshot = (channelId: string) => {
+  const io = ioInstance;
+  if (!io) {
+    return;
+  }
+  const presencePayload = buildPresencePayload(channelId);
+  io.to(channelRoom(channelId)).emit(SOCKET_EVENTS.PRESENCE_UPDATE, presencePayload);
+};
+
+export const emitChannelMessage = (channelId: string, message: MessageWithMember) => {
+  const io = ioInstance;
+  if (!io) {
+    return;
+  }
+  const messagePayload: ChatMessagePayload = {
+    channelId,
+    message,
+  };
+  io.to(channelRoom(channelId)).emit(SOCKET_EVENTS.CHAT_MESSAGE, messagePayload);
+
+  // Emit notification chỉ cho người trong channel, trừ người gửi
+  const room = io.sockets.adapter.rooms.get(channelRoom(channelId));
+  if (room) {
+    for (const socketId of room) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket && socket.data.profileId !== message.member.profileId) {
+        socket.emit(SOCKET_EVENTS.NOTIFICATION, {
+          serverId: message.member.serverId,
+          channelId,
+          messageId: message.id,
+          preview: message.content.slice(0, 120),
+          senderName: message.member.profile.name,
+        });
+      }
+    }
+  }
+};

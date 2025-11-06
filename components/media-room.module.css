@@ -1,0 +1,9 @@
+/* Hide chat and leave buttons in LiveKit */
+.mediaRoom :global(.lk-chat-toggle),
+.mediaRoom :global(.lk-button.lk-leave-button),
+.mediaRoom :global(.lk-disconnect-button),
+.mediaRoom :global(.lk-settings-menu-toggle),
+.mediaRoom :global([data-lk-theme] .lk-button[aria-label*="settings" i]),
+.mediaRoom :global([data-lk-theme] .lk-button[aria-label*="Settings" i]) {
+    display: none !important;
+}
