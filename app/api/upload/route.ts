@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFileAdvanced, deleteFile, getFileInfo, listFiles } from '@/lib/minio/client';
-import { checkRateLimit, generateSecureFileName, detectFileType } from '@/lib/minio/security';
+import { checkRateLimit, generateSecureFileName } from '@/lib/minio/security';
 import { currentUser } from '@clerk/nextjs/server';
 
 // Predefined validation configs

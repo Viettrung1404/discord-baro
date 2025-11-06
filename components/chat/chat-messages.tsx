@@ -96,7 +96,7 @@ export const ChatMessages = ({
     }
 
     return (
-        <div className="flex flex-1 flex-col py-4 overflow-y-auto">
+        <div className="flex-1 flex flex-col py-4 overflow-y-auto" ref={chatRef}>
             <div className="flex-1"/>
             <ChatWelcome
                 type={type}
@@ -123,6 +123,7 @@ export const ChatMessages = ({
                     </Fragment>
                 ))}
             </div>
+            <div ref={bottomRef} />
         </div>
     );
 };

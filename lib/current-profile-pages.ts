@@ -3,11 +3,6 @@ import { db } from "@/lib/db";
 import type { NextApiRequest } from "next";
 
 export const currentProfilePages = async (req: NextApiRequest) => {
-    console.info("[SOCKET_AUTH] Resolving current profile", {
-        url: req.url,
-        hasCookiesObject: Boolean(req.cookies),
-        hasCookieHeader: Boolean(req.headers?.cookie),
-    });
     if ((!req.cookies || typeof req.cookies !== "object") && req.headers?.cookie) {
         req.cookies = parseCookieHeader(req.headers.cookie);
     } else if (req.headers?.cookie) {
@@ -18,18 +13,11 @@ export const currentProfilePages = async (req: NextApiRequest) => {
     }
 
     let userId = await resolveUserId(req);
-    console.info("[SOCKET_AUTH] resolveUserId result", {
-        url: req.url,
-        userId,
-    });
     if (!userId) {
         return null;
     }
 
     const profile = await getOrCreateProfile(userId);
-    if (!profile) {
-        console.error("[CLERK_PROFILE_SYNC] Unable to resolve profile after upsert", { userId });
-    }
     return profile;
 };
 
@@ -67,13 +55,9 @@ const getOrCreateProfile = async (userId: string) => {
             },
         });
 
-        console.info("[CLERK_PROFILE_SYNC] Created profile from Clerk user", { userId });
         return profile;
     } catch (error) {
-        console.error("[CLERK_PROFILE_SYNC] Failed to upsert profile", {
-            userId,
-            error,
-        });
+        console.error("[CLERK_PROFILE_SYNC] Failed to upsert profile", { userId, error });
         return null;
     }
 };
@@ -82,23 +66,13 @@ const resolveUserId = async (req: NextApiRequest) => {
     try {
         const auth = await getAuth(req);
         if (auth?.userId) {
-            console.info("[SOCKET_AUTH] getAuth succeeded", {
-                url: req.url,
-                userId: auth.userId,
-            });
             return auth.userId;
         }
-        console.info("[SOCKET_AUTH] getAuth missing userId, attempting fallback", {
-            url: req.url,
-        });
     } catch (error) {
         if (!isMiddlewareDetectionError(error)) {
-            console.error("[SOCKET_AUTH] getAuth threw unexpected error", error);
+            console.error("[SOCKET_AUTH] getAuth error", error);
             throw error;
         }
-        console.info("[SOCKET_AUTH] getAuth hit middleware detection, using fallback", {
-            url: req.url,
-        });
     }
 
     try {
@@ -114,21 +88,11 @@ const resolveUserId = async (req: NextApiRequest) => {
         const requestState = await client.authenticateRequest(request);
         const auth = requestState.toAuth();
         if (auth && typeof auth === "object" && "userId" in auth && auth.userId) {
-            console.info("[SOCKET_AUTH] Fallback authenticateRequest resolved userId", {
-                url: req.url,
-                userId: auth.userId,
-            });
             return auth.userId as string;
         }
-        console.warn("[SOCKET_AUTH] Fallback authenticateRequest returned empty auth", {
-            url: req.url,
-        });
         return null;
     } catch (error) {
-        console.error("[CLERK_FALLBACK] authenticateRequest failed", {
-            url: req.url,
-            error,
-        });
+        console.error("[CLERK_FALLBACK] Failed", { url: req.url });
         return null;
     }
 };

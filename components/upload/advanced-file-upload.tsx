@@ -2,12 +2,11 @@
 
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, Image, Video, FileText, X, Eye, Download } from 'lucide-react';
+import { Upload, Image, Video, FileText, X, Eye, Download } from 'lucide-react';
 
 interface UploadedFile {
   fileName: string;
@@ -34,7 +33,6 @@ export const AdvancedFileUpload = ({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [dragActive, setDragActive] = useState(false);
 
   const getFileIcon = (fileType: string) => {
     if (fileType.startsWith('image/')) return <Image className="h-4 w-4" />;

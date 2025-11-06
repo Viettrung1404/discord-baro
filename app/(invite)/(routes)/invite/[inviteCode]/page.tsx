@@ -3,9 +3,9 @@ import { db } from "@/lib/db";
 import { redirect } from "next/dist/client/components/navigation";
 
 interface InviteCodePagesProps {
-    params: {
+    params: Promise<{
         inviteCode: string;
-    };
+    }>;
 }
 
 
@@ -17,13 +17,15 @@ const InviteCodePages = async ({
         return redirect("/sign-in");
     }
 
-    if (!params.inviteCode) {
+    const { inviteCode } = await params;
+
+    if (!inviteCode) {
         return redirect("/");
     }
 
     const existingServer = await db.server.findFirst({
         where: {
-            inviteCode: params.inviteCode,
+            inviteCode: inviteCode,
             members: {
                 some: { profileId: profile.id }
             }
@@ -34,7 +36,7 @@ const InviteCodePages = async ({
         return redirect(`/servers/${existingServer.id}`);
     }
     const server = await db.server.update({
-        where: { inviteCode: params.inviteCode },
+        where: { inviteCode: inviteCode },
         data: {
             members: {
                 create: [{ profileId: profile.id }]

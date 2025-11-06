@@ -45,6 +45,7 @@ export type ServerToClientEvents = {
     channelId: string;
     messageId: string;
     preview: string;
+    senderName?: string; // Tên người gửi
   }) => void;
 };
 

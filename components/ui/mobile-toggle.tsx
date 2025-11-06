@@ -23,7 +23,7 @@ export const MobileToggle = ({
                     <Menu/>
                 </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 flex gap-0">
+            <SheetContent side="left" className="p-0 flex gap-0 flex-row">
                 <VisuallyHidden>
                     <SheetTitle>Navigation Menu</SheetTitle>
                 </VisuallyHidden>

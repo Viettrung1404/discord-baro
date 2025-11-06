@@ -49,6 +49,8 @@ export const ServerChannel = ({
             >
                 {channel.name}
             </p>
+            {/* TODO: Thêm badge số unread messages */}
+            {/* <span className="ml-auto mr-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">3</span> */}
             {channel.name !== "general" && role !== MemberRole.GUEST && (
                 <div className="ml-auto flex items-center gap-x-2">
                     <ActionTooltip label="Edit">

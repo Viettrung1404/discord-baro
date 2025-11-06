@@ -85,7 +85,34 @@ export default async function handler (
                 }
             });
 
-            emitChannelMessage(channel.id, message);
+            const io = res?.socket?.server?.io;
+            if (io) {
+                // Emit message to channel
+                io.to(`channel:${channel.id}`).emit("chat:message", {
+                    channelId: channel.id,
+                    message
+                });
+
+                // Emit notification to users in channel, except sender
+                const room = io.sockets.adapter.rooms.get(`channel:${channel.id}`);
+                
+                if (room) {
+                    for (const socketId of room) {
+                        const socket = io.sockets.sockets.get(socketId);
+                        
+                        // Only emit if socket is NOT the sender
+                        if (socket && socket.data.profileId !== member.profileId) {
+                            socket.emit("notification:new", {
+                                serverId: member.serverId,
+                                channelId: channel.id,
+                                messageId: message.id,
+                                preview: content.slice(0, 120),
+                                senderName: message.member.profile.name,
+                            });
+                        }
+                    }
+                }
+            }
 
             return res.status(200).json(message);
         }

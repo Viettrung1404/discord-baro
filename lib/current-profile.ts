@@ -4,10 +4,8 @@ import { db } from "@/lib/db";
 
 export const currentProfile = async () => {
     const { userId } = await auth();
-    console.info("[CLERK_PROFILE_SYNC] currentProfile called", { userId });
     
     if (!userId) {
-        console.warn("[CLERK_PROFILE_SYNC] No userId from auth()");
         return null;
     }
 
@@ -34,17 +32,9 @@ export const currentProfile = async () => {
             },
         });
 
-        console.info("[CLERK_PROFILE_SYNC] Created profile from currentUser", {
-            userId,
-            profileId: profile.id,
-        });
-
         return profile;
     } catch (error) {
-        console.error("[CLERK_PROFILE_SYNC] Failed to create profile from currentUser", {
-            userId,
-            error,
-        });
+        console.error("[CLERK_PROFILE_SYNC] Failed to create profile", { userId, error });
         return null;
     }
 }

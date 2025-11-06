@@ -83,19 +83,33 @@ export default async function handler (
 
             // Emit to Socket.IO for real-time updates
             const conversationKey = `conversation:${conversation.id}`;
-            console.log(`[DIRECT_MESSAGE] Emitting to room: ${conversationKey}`);
-            console.log(`[DIRECT_MESSAGE] Message ID: ${message.id}`);
             
             const io = res?.socket?.server?.io;
             if (io) {
+                // Emit message to all users in room
+                io.to(conversationKey).emit(SOCKET_EVENTS.CHAT_MESSAGE, {
+                    channelId: conversation.id,
+                    message
+                });
+                
+                // Emit notification chỉ cho người NHẬN (không emit cho người gửi)
                 const room = io.sockets.adapter.rooms.get(conversationKey);
-                console.log(`[DIRECT_MESSAGE] Sockets in room ${conversationKey}:`, room ? Array.from(room) : 'No sockets');
+                if (room) {
+                    for (const socketId of room) {
+                        const socket = io.sockets.sockets.get(socketId);
+                        // Chỉ emit notification nếu socket KHÔNG phải người gửi
+                        if (socket && socket.data.profileId !== profile.id) {
+                            socket.emit(SOCKET_EVENTS.NOTIFICATION, {
+                                serverId: "",
+                                channelId: conversation.id,
+                                messageId: message.id,
+                                preview: content.slice(0, 120),
+                                senderName: member.profile.name,
+                            });
+                        }
+                    }
+                }
             }
-            
-            res?.socket?.server?.io?.to(conversationKey).emit(SOCKET_EVENTS.CHAT_MESSAGE, {
-                channelId: conversation.id,
-                message
-            });
 
             return res.status(200).json(message);
         }

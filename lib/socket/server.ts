@@ -301,11 +301,20 @@ export const emitChannelMessage = (channelId: string, message: MessageWithMember
   };
   io.to(channelRoom(channelId)).emit(SOCKET_EVENTS.CHAT_MESSAGE, messagePayload);
 
-  const notificationPayload: NotificationPayload = {
-    serverId: message.member.serverId,
-    channelId,
-    messageId: message.id,
-    preview: message.content.slice(0, 120),
-  };
-  emitServerNotification(notificationPayload);
+  // Emit notification chỉ cho người trong channel, trừ người gửi
+  const room = io.sockets.adapter.rooms.get(channelRoom(channelId));
+  if (room) {
+    for (const socketId of room) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket && socket.data.profileId !== message.member.profileId) {
+        socket.emit(SOCKET_EVENTS.NOTIFICATION, {
+          serverId: message.member.serverId,
+          channelId,
+          messageId: message.id,
+          preview: message.content.slice(0, 120),
+          senderName: message.member.profile.name,
+        });
+      }
+    }
+  }
 };
