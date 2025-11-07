@@ -2,7 +2,7 @@ import { currentProfile } from "@/lib/current-profile";
 import { ChannelType, Channel, Member, Profile, MemberRole } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { Hash, Scroll, Server, Video, Mic, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Hash, Scroll, Server, Video, Mic, ShieldCheck, ShieldAlert, Lock } from "lucide-react";
 import { ServerHeader } from "./server-header";
 import { ScrollArea } from "../ui/scroll-area";
 import { ServerSearch } from "./sever-search";
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ServerSection } from "./server-section";
 import { ServerChannel } from "./server-channel";
 import { ServerMember } from "./server-member";
+import { getAccessibleChannels } from "@/lib/channel-permissions";
 interface ServerSidebarProps {
     serverId?: string;
 }
@@ -54,15 +55,26 @@ export const ServerSidebar = async ({
         }
     });
 
-    const textChannels = server?.channels.filter((channel: Channel) => channel.type === ChannelType.TEXT);
-    const audioChannels = server?.channels.filter((channel: Channel) => channel.type === ChannelType.AUDIO);
-    const videoChannels = server?.channels.filter((channel: Channel) => channel.type === ChannelType.VIDEO);
-
-    const members = server?.members.filter((member: Member & { profile: Profile }) => member.profileId !== profile.id);
     if (!server) {
         return redirect("/");
     }
-    const role = server.members.find((member) => member.profileId === profile.id)?.role;
+
+    // Get current member
+    const currentMember = server.members.find((member) => member.profileId === profile.id);
+    if (!currentMember) {
+        return redirect("/");
+    }
+
+    // Filter channels by permissions
+    const accessibleChannels = await getAccessibleChannels(currentMember.id, server.id);
+    
+    const textChannels = accessibleChannels.filter((channel) => channel.type === ChannelType.TEXT);
+    const audioChannels = accessibleChannels.filter((channel) => channel.type === ChannelType.AUDIO);
+    const videoChannels = accessibleChannels.filter((channel) => channel.type === ChannelType.VIDEO);
+
+    const members = server?.members.filter((member: Member & { profile: Profile }) => member.profileId !== profile.id);
+    
+    const role = currentMember.role;
 
     return (
         <div className="flex flex-col h-full text-primary w-full dark:bg-[#2B2D31] bg-[#F2F3F5]">
