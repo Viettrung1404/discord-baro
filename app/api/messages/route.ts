@@ -2,6 +2,7 @@ import { currentProfile } from "@/lib/current-profile";
 import { db } from "@/lib/db";
 import { Message } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { canViewChannel } from "@/lib/channel-permissions";
 
 // ✅ OPTIMIZATION: Larger batch size for better performance
 // 50 messages ≈ 1-2 screens worth, reduces API calls
@@ -24,8 +25,41 @@ export async function GET(
             return new NextResponse("Channel ID is missing", { status: 400 });
         }
 
-        // ✅ OPTIMIZATION: Unified query with conditional cursor
-        // Reduces code duplication and easier to maintain
+        // --- Logic từ nhánh `release/1.0` (Permission Checks) ---
+        // Lấy thông tin channel và member để kiểm tra quyền
+        const channel = await db.channel.findUnique({
+            where: { id: channelId },
+            include: {
+                server: {
+                    include: {
+                        members: {
+                            where: {
+                                profileId: profile.id
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!channel) {
+            return new NextResponse("Channel not found", { status: 404 });
+        }
+
+        const member = channel.server.members[0];
+        if (!member) {
+            return new NextResponse("Not a member of this server", { status: 403 });
+        }
+
+        // Kiểm tra xem member có quyền xem channel này không
+        const hasAccess = await canViewChannel(member.id, channelId);
+        if (!hasAccess) {
+            return new NextResponse("You don't have permission to view this channel", { status: 403 });
+        }
+        // --- Kết thúc logic từ `release/1.0` ---
+
+
+        // --- Logic từ nhánh `feat/pagination` (Data Query) ---
         let messages: Message[] = [];
         
         messages = await db.message.findMany({
@@ -36,13 +70,13 @@ export async function GET(
             }),
             where: { 
                 channelId,
-                deleted: false  // ✅ Filter deleted messages at DB level
+                deleted: false  // ✅ Filter tin nhắn đã xóa ở cấp DB
             },
             include: {
                 member: {
                     include: { 
                         profile: {
-                            select: {  // ✅ Only select needed fields
+                            select: {  // ✅ Chỉ chọn các trường cần thiết
                                 id: true,
                                 name: true,
                                 imageUrl: true,
@@ -57,7 +91,7 @@ export async function GET(
             }
         });
         
-        // ✅ OPTIMIZATION: Check for next page
+        // ✅ OPTIMIZATION: Kiểm tra trang tiếp theo
         let nextCursor = null;
         if (messages.length === MESSAGES_BATCH) {
             nextCursor = messages[MESSAGES_BATCH - 1].id;
@@ -68,7 +102,7 @@ export async function GET(
             nextCursor,
         }, {
             headers: {
-                // ✅ Cache for 5 seconds to reduce database load
+                // ✅ Cache 5 giây để giảm tải database
                 'Cache-Control': 'private, max-age=5',
             }
         });

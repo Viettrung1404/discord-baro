@@ -62,8 +62,9 @@ model Member {
   serverId String
   server   Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
-  messages       Message[]
+  messages Message[]
   directMessages DirectMessage[]
+  channelPermissions ChannelPermission[] // Specific channel permissions
 
   conversationInitiated Conversation[] @relation("MemberOne")
   conversationReceived  Conversation[] @relation("MemberTwo")
@@ -85,6 +86,10 @@ model Channel {
   id   String      @id @default(uuid())
   name String
   type ChannelType @default(TEXT)
+  
+  // Channel visibility and access control
+  isPrivate Boolean @default(false) // Private channels require explicit permission
+  allowedRoles MemberRole[] @default([ADMIN, MODERATOR, GUEST]) // Roles allowed to access
 
   profileId String
   profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -93,12 +98,37 @@ model Channel {
   server   Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   Messages Message[]
-
+  
+  channelPermissions ChannelPermission[] // Specific member permissions
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([serverId])
   @@index([profileId])
+}
+
+// Channel-specific permissions for individual members
+model ChannelPermission {
+  id String @id @default(uuid())
+  
+  channelId String
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  
+  memberId String
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  
+  canView Boolean @default(true)
+  canSendMessages Boolean @default(true)
+  canManageMessages Boolean @default(false) // Delete/edit others' messages
+  canInviteMembers Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([channelId, memberId])
+  @@index([channelId])
+  @@index([memberId])
 }
 
 model Message {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import dynamic from "next/dynamic";
 
 // ✅ LAZY LOAD: Load modals only when needed (200KB+ savings)
@@ -85,6 +86,7 @@ export const ModalProvider = () => {
             <EditChannelModal />
             <MessageFileModal />
             <DeleteMessageModal />
+            <ManageChannelPermissionsModal />
         </>
     );
 };
