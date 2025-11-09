@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Member, MemberRole, Profile } from "@prisma/client";
 import { UserAvatar } from "@/components/user-avatar";
 import { ActionTooltip } from "@/components/ui/action-tooltip";
@@ -57,7 +57,9 @@ const formSchema = z.object({
     content: z.string().min(1)
 });
 
-export const ChatItem = ({
+// Component được tối ưu với React.memo để tránh re-render không cần thiết
+// Đặc biệt quan trọng khi có nhiều messages trong chat
+const ChatItemComponent = ({
     id,
     content,
     member,
@@ -389,3 +391,6 @@ export const ChatItem = ({
         </div>
     );
 };
+
+// Export memoized version để tối ưu performance
+export const ChatItem = memo(ChatItemComponent);
