@@ -250,7 +250,8 @@ const ChatItemComponent = ({
                     <div className="mt-2">
                         {/* Image Preview */}
                         {isImage && (
-                            <a 
+                            <a
+                                title="View Image"
                                 href={fileUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
