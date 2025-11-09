@@ -9,7 +9,7 @@ import { MemberRole } from "@prisma/client";
  */
 export async function GET(
   req: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -17,7 +17,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { channelId } = params;
+    const { channelId } = await params;
 
     // Get channel with permissions
     const channel = await db.channel.findUnique({
@@ -81,7 +81,7 @@ export async function GET(
  */
 export async function PATCH(
   req: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -89,7 +89,7 @@ export async function PATCH(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { channelId } = params;
+    const { channelId } = await params;
     const { isPrivate, allowedRoles } = await req.json();
 
     // Get channel and check permissions
@@ -141,7 +141,7 @@ export async function PATCH(
  */
 export async function POST(
   req: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -149,7 +149,7 @@ export async function POST(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { channelId } = params;
+    const { channelId } = await params;
     const { 
       memberId, 
       canView = true, 
@@ -240,7 +240,7 @@ export async function POST(
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -248,7 +248,7 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { channelId } = params;
+    const { channelId } = await params;
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
 

@@ -9,7 +9,7 @@ import { MemberRole } from "@prisma/client";
  */
 export async function GET(
   req: Request,
-  { params }: { params: { serverId: string } }
+  { params }: { params: Promise<{ serverId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -17,7 +17,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { serverId } = params;
+    const { serverId } = await params;
 
     // Get server and check if user is a member
     const server = await db.server.findUnique({
