@@ -71,6 +71,7 @@ export const ChatMessages = ({
         loadMore: fetchNextPage,
         shouldLoadMore: !isFetchingNextPage && !!hasNextPage,
         count: data?.pages?.[0]?.items?.length ?? 0,
+        chatKey: paramValue, // Use paramValue (channelId) to detect channel changes
     });
 
     if (status === "pending") {

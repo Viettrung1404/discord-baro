@@ -20,8 +20,7 @@ export const MediaRoom = ({ chatId, video, audio }: MediaRoomProps) => {
     const [error, setError] = useState("");
 
     useEffect(() => {
-        if (!user?.firstName || !user?.lastName) return;
-        const name = `${user.firstName} ${user.lastName}`;
+        const name = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`;
         (async () => {
             try {
                 const resp = await fetch(`/api/livekit?room=${chatId}&username=${encodeURIComponent(name)}`);
