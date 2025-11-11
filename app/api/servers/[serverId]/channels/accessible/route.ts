@@ -8,7 +8,7 @@ import { getAccessibleChannels } from "@/lib/channel-permissions";
  */
 export async function GET(
   req: Request,
-  { params }: { params: { serverId: string } }
+  { params }: { params: Promise<{ serverId: string }> }
 ) {
   try {
     const profile = await currentProfile();
@@ -16,7 +16,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { serverId } = params;
+    const { serverId } = await params;
 
     // Get member ID
     const { db } = await import("@/lib/db");

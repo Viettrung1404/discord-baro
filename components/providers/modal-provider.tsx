@@ -13,6 +13,7 @@ import { EditChannelModal } from "@/components/modals/edit-channel-modal";
 import { MessageFileModal } from "@/components/modals/message-file-modal";
 import { DeleteMessageModal } from "@/components/modals/delete-message-modal";
 import { ManageChannelPermissionsModal } from "@/components/modals/manage-channel-permissions-modal";
+import { ViewPinnedMessagesModal } from "@/components/modals/view-pinned-messages-modal";
 export const ModalProvider = () => {
 
     const [isMounted, setIsMounted] = useState(false);
@@ -39,6 +40,7 @@ export const ModalProvider = () => {
             <MessageFileModal />
             <DeleteMessageModal />
             <ManageChannelPermissionsModal />
+            <ViewPinnedMessagesModal />
         </>
     );
 };
