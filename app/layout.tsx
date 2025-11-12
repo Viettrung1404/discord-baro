@@ -25,11 +25,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Discord Baro',
-  description: 'A modern Discord clone with real-time messaging, voice channels, and file sharing',
-  icons: {
-    icon: '/favicon.ico',
-  }
+  title: 'VibeCord',
+  description: 'A real-time chat application built with Next.js, Socket.IO, and Prisma ORM.',
 }
 
 export default function RootLayout({
