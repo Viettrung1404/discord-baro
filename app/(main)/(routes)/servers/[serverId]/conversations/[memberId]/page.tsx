@@ -59,6 +59,7 @@ const MemberIdPage = async ({
                 name={otherMember.profile.name || "Unknown"}
                 serverId={serverId}
                 type="conversation"
+                conversationId={conversation.id}
             />
             {searchParams.video && (
                 <MediaRoom

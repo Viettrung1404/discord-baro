@@ -125,6 +125,7 @@ export const ChatMessages = ({
                                 socketQuery={socketQuery}
                                 pinned={message.pinned}
                                 pinnedAt={message.pinnedAt}
+                                type={type}
                             />
                         ))}
                     </Fragment>

@@ -49,6 +49,7 @@ interface ChatItemProps {
     socketQuery: Record<string, string>;
     pinned?: boolean;
     pinnedAt?: Date | null;
+    type?: "channel" | "conversation"; // To determine API endpoint
 }
 
 const roleIconMap = {
@@ -74,6 +75,7 @@ export const ChatItem = ({
     socketQuery,
     pinned = false,
     pinnedAt = null,
+    type = "channel",
 }: ChatItemProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isPinning, setIsPinning] = useState(false);
@@ -157,10 +159,16 @@ export const ChatItem = ({
         
         try {
             setIsPinning(true);
+            
+            // Use different API endpoint based on type
+            const pinEndpoint = type === "conversation" 
+                ? `/api/direct-messages/${id}/pin`
+                : `/api/messages/${id}/pin`;
+            
             if (pinned) {
-                await axios.delete(`/api/messages/${id}/pin`);
+                await axios.delete(pinEndpoint);
             } else {
-                await axios.post(`/api/messages/${id}/pin`);
+                await axios.post(pinEndpoint);
             }
             router.refresh();
         } catch (error) {
