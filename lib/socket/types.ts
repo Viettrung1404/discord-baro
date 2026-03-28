@@ -5,12 +5,30 @@ export type MessageWithMember = Message & {
     profile: Profile;
   };
   channel: Channel;
+  replyToMessage?: {
+    id: string;
+    content: string;
+    fileUrl: string | null;
+    deleted: boolean;
+    member: Member & {
+      profile: Profile;
+    };
+  } | null;
 };
 
 export type DirectMessageWithMember = DirectMessage & {
   member: Member & {
     profile: Profile;
   };
+  replyToDirectMessage?: {
+    id: string;
+    content: string;
+    fileUrl: string | null;
+    deleted: boolean;
+    member: Member & {
+      profile: Profile;
+    };
+  } | null;
 };
 
 export type PresenceUser = {

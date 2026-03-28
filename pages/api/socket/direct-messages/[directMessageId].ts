@@ -75,7 +75,16 @@ export default async function handler(
                     include: {
                         profile: true
                     }
-                }
+                },
+                replyToDirectMessage: {
+                    include: {
+                        member: {
+                            include: {
+                                profile: true,
+                            },
+                        },
+                    },
+                },
             }
         });
 
@@ -106,7 +115,16 @@ export default async function handler(
                         include: {
                             profile: true
                         }
-                    }
+                    },
+                    replyToDirectMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 
@@ -140,7 +158,16 @@ export default async function handler(
                         include: {
                             profile: true
                         }
-                    }
+                    },
+                    replyToDirectMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 

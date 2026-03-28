@@ -10,6 +10,7 @@ import {
 } from '@clerk/nextjs'
 import { QueryProvider } from '@/components/providers/query-provider'
 import { Geist, Geist_Mono } from 'next/font/google'
+import Script from 'next/script'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { cn } from '@/lib/utils'
 import { ModalProvider } from '@/components/providers/modal-provider'
@@ -42,9 +43,36 @@ export default function RootLayout({
       afterSignUpUrl="/"
     >
       <html lang="en" suppressHydrationWarning>
-        <body className={cn(geistSans.className,
+        <body
+          suppressHydrationWarning
+          className={cn(geistSans.className,
             "bg-white dark:bg-[#313338]"
-        )}>
+          )}
+        >
+          <Script id="sanitize-extension-attrs" strategy="beforeInteractive">
+            {`(function(){
+              var removeInjectedAttrs = function () {
+                var all = document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {
+                  var el = all[i];
+                  var attrs = el.getAttributeNames ? el.getAttributeNames() : [];
+                  for (var j = 0; j < attrs.length; j++) {
+                    var name = attrs[j];
+                    if (
+                      name === 'bis_skin_checked' ||
+                      name === 'bis_register' ||
+                      name.indexOf('bis_') === 0 ||
+                      name.indexOf('__processed_') === 0
+                    ) {
+                      el.removeAttribute(name);
+                    }
+                  }
+                }
+              };
+              removeInjectedAttrs();
+              document.addEventListener('DOMContentLoaded', removeInjectedAttrs);
+            })();`}
+          </Script>
           <ThemeProvider 
             attribute="class" 
             defaultTheme="dark" 

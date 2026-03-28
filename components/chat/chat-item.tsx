@@ -19,6 +19,7 @@ import {
     Play,
     Pin,
     PinOff,
+    Reply,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
 import { useModal } from "@/hooks/use-modal-store";
+import { useReplyStore } from "@/hooks/use-reply-store";
 
 
 interface ChatItemProps {
@@ -50,6 +52,14 @@ interface ChatItemProps {
     pinned?: boolean;
     pinnedAt?: Date | null;
     type?: "channel" | "conversation"; // To determine API endpoint
+    replyTo?: {
+        id: string;
+        content: string;
+        fileUrl?: string | null;
+        deleted: boolean;
+        authorName: string;
+    } | null;
+    onJumpToMessage?: (messageId: string) => Promise<void> | void;
 }
 
 const roleIconMap = {
@@ -62,8 +72,6 @@ const formSchema = z.object({
     content: z.string().min(1)
 });
 
-// Component được tối ưu với React.memo để tránh re-render không cần thiết
-// Đặc biệt quan trọng khi có nhiều messages trong chat
 const ChatItemComponent = ({
     id,
     content,
@@ -78,11 +86,14 @@ const ChatItemComponent = ({
     pinned = false,
     pinnedAt = null,
     type = "channel",
+    replyTo = null,
+    onJumpToMessage,
 }: ChatItemProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isPinning, setIsPinning] = useState(false);
     const { onOpen } = useModal();
     const router = useRouter();
+    const { setReply } = useReplyStore();
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -127,6 +138,7 @@ const ChatItemComponent = ({
     const canDeleteMessage = !deleted && (isAdmin || isModerator || isOwner);
     const canEditMessage = !deleted && isOwner && !fileUrl;
     const canPinMessage = !deleted && (isAdmin || isModerator); // Only ADMIN/MODERATOR can pin
+    const canReply = !deleted;
 
     // File type checks
     const isImage = fileType && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(fileType);
@@ -194,6 +206,42 @@ const ChatItemComponent = ({
         return "File";
     };
 
+    const onReply = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const contextId = type === "channel"
+            ? String(socketQuery.channelId || "")
+            : String(socketQuery.conversationId || "");
+
+        if (!contextId) {
+            return;
+        }
+
+        setReply({
+            id,
+            content,
+            fileUrl,
+            memberName: member.profile.name,
+            type,
+            contextId,
+        });
+    };
+
+    const jumpToRepliedMessage = async () => {
+        if (!replyTo) {
+            return;
+        }
+
+        if (onJumpToMessage) {
+            await onJumpToMessage(replyTo.id);
+            return;
+        }
+
+        const target = document.getElementById(`message-${replyTo.id}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
     return (
         <div 
             id={`message-${id}`}
@@ -233,6 +281,22 @@ const ChatItemComponent = ({
                 </div>
 
                 {/* Message Content */}
+                {!deleted && replyTo && (
+                    <button
+                        type="button"
+                        onClick={jumpToRepliedMessage}
+                        className="mt-2 text-left border-l-2 border-zinc-300 dark:border-zinc-600 pl-3 py-1 bg-zinc-100/70 dark:bg-zinc-800/40 rounded-r-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                    >
+                        <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                            Đang trả lời {replyTo.authorName}
+                        </p>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[360px]">
+                            {replyTo.deleted
+                                ? "This message has been deleted."
+                                : replyTo.content || (replyTo.fileUrl ? "Attachment" : "Message")}
+                        </p>
+                    </button>
+                )}
                 {!deleted && !isEditing && (
                     <p className={cn(
                         "text-sm text-zinc-600 dark:text-zinc-300 mt-1",
@@ -405,8 +469,16 @@ const ChatItemComponent = ({
             </div>
 
             {/* Action Buttons (Pin, Edit & Delete) */}
-            {(canDeleteMessage || canPinMessage) && (
+            {(canDeleteMessage || canPinMessage || canReply) && (
                 <div className="hidden group-hover:flex items-center gap-x-2 absolute p-1 -top-2 right-5 bg-white dark:bg-zinc-800 border rounded-sm">
+                    {canReply && (
+                        <ActionTooltip label="Reply">
+                            <Reply
+                                onClick={onReply}
+                                className="cursor-pointer ml-auto w-4 h-4 text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 transition"
+                            />
+                        </ActionTooltip>
+                    )}
                     {canPinMessage && (
                         <ActionTooltip label={pinned ? "Unpin" : "Pin"}>
                             {pinned ? (

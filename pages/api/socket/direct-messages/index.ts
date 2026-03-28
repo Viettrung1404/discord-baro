@@ -21,7 +21,7 @@ export default async function handler (
 
         // POST: Create new message
         if (req.method === "POST") {
-            const { content, fileUrl } = req.body;
+            const { content, fileUrl, replyToDirectMessageId } = req.body;
             const { conversationId } = req.body;
 
             const conversation = await db.conversation.findFirst({
@@ -64,12 +64,28 @@ export default async function handler (
                 return res.status(404).json({ error : "Member not found" });
             }
 
+            let replyToDirectMessage: { id: string } | null = null;
+            if (replyToDirectMessageId) {
+                replyToDirectMessage = await db.directMessage.findFirst({
+                    where: {
+                        id: String(replyToDirectMessageId),
+                        conversationId: conversation.id,
+                    },
+                    select: { id: true },
+                });
+
+                if (!replyToDirectMessage) {
+                    return res.status(400).json({ error: "Reply message not found in this conversation" });
+                }
+            }
+
             const message = await db.directMessage.create({
                 data: {
                     content,
                     fileUrl,
                     conversationId: conversation.id,
                     memberId: member.id,
+                    replyToDirectMessageId: replyToDirectMessage?.id,
                 },
                 include: {
                     member: {
@@ -78,6 +94,15 @@ export default async function handler (
                         }
                     },
                     conversation: true,
+                    replyToDirectMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 

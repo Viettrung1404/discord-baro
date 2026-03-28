@@ -23,7 +23,7 @@ export default async function handler (
 
         // POST: Create new message
         if (req.method === "POST") {
-            const { content, fileUrl } = req.body;
+            const { content, fileUrl, replyToMessageId } = req.body;
             const { serverId, channelId } = req.body;
 
             if (!serverId) {
@@ -75,12 +75,28 @@ export default async function handler (
                 return res.status(403).json({ error: "You don't have permission to send messages in this channel" });
             }
 
+            let replyToMessage: { id: string } | null = null;
+            if (replyToMessageId) {
+                replyToMessage = await db.message.findFirst({
+                    where: {
+                        id: String(replyToMessageId),
+                        channelId: channel.id,
+                    },
+                    select: { id: true },
+                });
+
+                if (!replyToMessage) {
+                    return res.status(400).json({ error: "Reply message not found in this channel" });
+                }
+            }
+
             const message = await db.message.create({
                 data: {
                     content,
                     fileUrl,
                     channelId: channel.id,
                     memberId: member.id,
+                    replyToMessageId: replyToMessage?.id,
                 },
                 include: {
                     member: {
@@ -89,6 +105,15 @@ export default async function handler (
                         }
                     },
                     channel: true,
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 

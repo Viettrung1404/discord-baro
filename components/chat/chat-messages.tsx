@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useRef } from "react";
+import { Fragment, useCallback, useEffect, useRef } from "react";
 import { Member, Profile, Message } from "@prisma/client";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
 import { useChatQuery } from "@/hooks/use-chat-query";
@@ -14,7 +14,29 @@ const DATE_FORMAT = "d MMM, yyyy HH:mm";
 type MessageWithMemberWithProfile = Message & {
     member: Member & {
         profile: Profile
-    }
+    };
+    replyToMessage?: {
+        id: string;
+        content: string;
+        fileUrl: string | null;
+        deleted: boolean;
+        member: {
+            profile: {
+                name: string;
+            };
+        };
+    } | null;
+    replyToDirectMessage?: {
+        id: string;
+        content: string;
+        fileUrl: string | null;
+        deleted: boolean;
+        member: {
+            profile: {
+                name: string;
+            };
+        };
+    } | null;
 }
 
 interface ChatMessagesProps {
@@ -43,6 +65,8 @@ export const ChatMessages = ({
     const queryKey = `chat:${chatId}`;
     const chatRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const hasNextPageRef = useRef(false);
+    const isFetchingNextPageRef = useRef(false);
 
     const {
         data,
@@ -57,11 +81,52 @@ export const ChatMessages = ({
         paramValue,
     });
 
-    // Listen for real-time messages via Socket.IO
+    useEffect(() => {
+        hasNextPageRef.current = !!hasNextPage;
+    }, [hasNextPage]);
+
+    useEffect(() => {
+        isFetchingNextPageRef.current = isFetchingNextPage;
+    }, [isFetchingNextPage]);
+
+    const jumpToMessage = useCallback(async (messageId: string) => {
+        const selector = `message-${messageId}`;
+        const highlight = (el: HTMLElement) => {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("bg-indigo-100", "dark:bg-indigo-900/30");
+            setTimeout(() => {
+                el.classList.remove("bg-indigo-100", "dark:bg-indigo-900/30");
+            }, 1800);
+        };
+
+        let target = document.getElementById(selector);
+        if (target) {
+            highlight(target);
+            return;
+        }
+
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        while (!target && hasNextPageRef.current && attempts < maxAttempts) {
+            if (!isFetchingNextPageRef.current) {
+                await fetchNextPage();
+            }
+
+            attempts += 1;
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            target = document.getElementById(selector);
+        }
+
+        if (target) {
+            highlight(target);
+        }
+    }, [fetchNextPage]);
+
     useChatSocket({
         queryKey,
-        channelId: paramValue, // Use paramValue as channelId (works for both channel and conversation)
-        serverId: socketQuery.serverId, // Only present for channels, undefined for conversations
+        channelId: paramValue,
+        serverId: socketQuery.serverId,
     });
 
     // Auto-scroll to bottom on new messages
@@ -71,7 +136,7 @@ export const ChatMessages = ({
         loadMore: fetchNextPage,
         shouldLoadMore: !isFetchingNextPage && !!hasNextPage,
         count: data?.pages?.[0]?.items?.length ?? 0,
-        chatKey: paramValue, // Use paramValue (channelId) to detect channel changes
+        chatKey: paramValue,
     });
 
     if (status === "pending") {
@@ -141,6 +206,17 @@ export const ChatMessages = ({
                                 pinned={message.pinned}
                                 pinnedAt={message.pinnedAt}
                                 type={type}
+                                replyTo={(message.replyToMessage || message.replyToDirectMessage)
+                                    ? {
+                                        id: (message.replyToMessage || message.replyToDirectMessage)!.id,
+                                        content: (message.replyToMessage || message.replyToDirectMessage)!.content,
+                                        fileUrl: (message.replyToMessage || message.replyToDirectMessage)!.fileUrl,
+                                        deleted: (message.replyToMessage || message.replyToDirectMessage)!.deleted,
+                                        authorName: (message.replyToMessage || message.replyToDirectMessage)!.member.profile.name,
+                                    }
+                                    : null
+                                }
+                                onJumpToMessage={jumpToMessage}
                             />
                         ))}
                     </Fragment>

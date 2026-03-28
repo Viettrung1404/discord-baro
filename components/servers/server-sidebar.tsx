@@ -3,6 +3,7 @@ import { ChannelType, Channel, Member, Profile, MemberRole } from "@prisma/clien
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { Hash, Scroll, Server, Video, Mic, ShieldCheck, ShieldAlert, Lock } from "lucide-react";
+import type { ReactNode } from "react";
 import { ServerHeader } from "./server-header";
 import { ScrollArea } from "../ui/scroll-area";
 import { ServerSearch } from "./sever-search";
@@ -15,7 +16,7 @@ interface ServerSidebarProps {
     serverId?: string;
 }
 
-const iconMap= {
+const iconMap: Partial<Record<ChannelType, ReactNode>> = {
     [ChannelType.TEXT]: <Hash className="mr-2 h-4 w-4" />,
     [ChannelType.AUDIO]: <Mic className="mr-2 h-4 w-4" />,
     [ChannelType.VIDEO]: <Video className="mr-2 h-4 w-4" />,
@@ -77,7 +78,7 @@ export const ServerSidebar = async ({
     const role = currentMember.role;
 
     return (
-        <div className="flex flex-col h-full text-primary w-full dark:bg-[#2B2D31] bg-[#F2F3F5]">
+        <div className="flex flex-col h-full text-primary w-full dark:bg-[#1E1F22] bg-[#F2F3F5]">
             <ServerHeader
                 server={server}
                 role={role}
@@ -92,7 +93,7 @@ export const ServerSidebar = async ({
                                 data: textChannels?.map((channel) => ({
                                     id: channel.id,
                                     name: channel.name,
-                                    icon: iconMap[channel.type] 
+                                    icon: iconMap[channel.type] ?? <Hash className="mr-2 h-4 w-4" />
                                 }))
                             },
                             {
@@ -101,7 +102,7 @@ export const ServerSidebar = async ({
                                 data: audioChannels?.map((channel) => ({
                                     id: channel.id,
                                     name: channel.name,
-                                    icon: iconMap[channel.type] 
+                                    icon: iconMap[channel.type] ?? <Hash className="mr-2 h-4 w-4" />
                                 }))
                             },
                             {
@@ -110,7 +111,7 @@ export const ServerSidebar = async ({
                                 data: videoChannels?.map((channel) => ({
                                     id: channel.id,
                                     name: channel.name,
-                                    icon: iconMap[channel.type] 
+                                    icon: iconMap[channel.type] ?? <Hash className="mr-2 h-4 w-4" />
                                 }))
                             },
                             {

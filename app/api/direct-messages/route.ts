@@ -1,6 +1,5 @@
 import { currentProfile } from "@/lib/current-profile";
 import { db } from "@/lib/db";
-import { DirectMessage } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 
@@ -23,7 +22,7 @@ export async function GET(
             return new NextResponse("Conversation ID is missing", { status: 400 });
         }
 
-        let messages: DirectMessage[] = [];
+        let messages = [];
         if ( cursor ) {
             messages = await db.directMessage.findMany({
                 take: MESSAGES_BATCH,
@@ -33,7 +32,14 @@ export async function GET(
                 include: {
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToDirectMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });
@@ -47,7 +53,14 @@ export async function GET(
                 include: { 
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToDirectMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });

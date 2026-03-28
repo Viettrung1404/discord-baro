@@ -84,7 +84,16 @@ export default async function handler(
                         profile: true
                     }
                 },
-                channel: true
+                channel: true,
+                replyToMessage: {
+                    include: {
+                        member: {
+                            include: {
+                                profile: true,
+                            },
+                        },
+                    },
+                },
             }
         });
 
@@ -119,7 +128,16 @@ export default async function handler(
                             profile: true
                         }
                     },
-                    channel: true
+                    channel: true,
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 
@@ -154,7 +172,16 @@ export default async function handler(
                             profile: true
                         }
                     },
-                    channel: true
+                    channel: true,
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 

@@ -1,6 +1,5 @@
 import { currentProfile } from "@/lib/current-profile";
 import { db } from "@/lib/db";
-import { Message } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { canViewChannel } from "@/lib/channel-permissions";
 
@@ -55,7 +54,7 @@ export async function GET(
             return new NextResponse("You don't have permission to view this channel", { status: 403 });
         }
 
-        let messages: Message[] = [];
+        let messages = [];
         if ( cursor ) {
             messages = await db.message.findMany({
                 take: MESSAGES_BATCH,
@@ -65,7 +64,14 @@ export async function GET(
                 include: {
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });
@@ -79,7 +85,14 @@ export async function GET(
                 include: { 
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });

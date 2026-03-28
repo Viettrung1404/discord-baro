@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Profile {
@@ -89,6 +88,7 @@ enum ChannelType {
   TEXT
   AUDIO
   VIDEO
+  WHITEBOARD
 }
 
 model Channel {
@@ -150,6 +150,11 @@ model Message {
 
   fileUrl String? @db.Text
 
+  // Reply message feature (self-relation)
+  replyToMessageId String?
+  replyToMessage   Message?  @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies          Message[] @relation("MessageReplies")
+
   memberId String
   member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
@@ -157,10 +162,10 @@ model Message {
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   deleted Boolean @default(false)
-  
+
   // Pin message feature
-  pinned Boolean @default(false)
-  pinnedAt DateTime?
+  pinned     Boolean   @default(false)
+  pinnedAt   DateTime?
   pinnedById String? // MemberId who pinned the message
 
   createdAt DateTime @default(now())
@@ -168,6 +173,7 @@ model Message {
 
   @@index([channelId]) // Lấy messages trong channel
   @@index([memberId]) // Lấy messages của member
+  @@index([replyToMessageId]) // Resolve replied message quickly
   @@index([pinned, channelId]) // For querying pinned messages in a channel
   @@index([channelId, createdAt(sort: Desc)]) // Composite: Pagination messages (CRITICAL!)
   @@index([channelId, deleted, createdAt(sort: Desc)]) // Filter non-deleted messages với sort
@@ -201,6 +207,11 @@ model DirectMessage {
   content String  @db.Text
   fileUrl String? @db.Text
 
+  // Reply message feature (self-relation)
+  replyToDirectMessageId String?
+  replyToDirectMessage   DirectMessage?  @relation("DirectMessageReplies", fields: [replyToDirectMessageId], references: [id], onDelete: SetNull)
+  replies                DirectMessage[] @relation("DirectMessageReplies")
+
   memberId String
   member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
@@ -208,10 +219,10 @@ model DirectMessage {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   deleted Boolean @default(false)
-  
+
   // Pin message feature for direct messages
-  pinned Boolean @default(false)
-  pinnedAt DateTime?
+  pinned     Boolean   @default(false)
+  pinnedAt   DateTime?
   pinnedById String? // MemberId who pinned the message
 
   createdAt DateTime @default(now())
@@ -219,6 +230,7 @@ model DirectMessage {
 
   @@index([memberId]) // Lấy messages của member
   @@index([conversationId]) // Lấy messages trong conversation
+  @@index([replyToDirectMessageId]) // Resolve replied DM quickly
   @@index([pinned, conversationId]) // For querying pinned messages in a conversation
   @@index([conversationId, createdAt(sort: Desc)]) // Composite: Pagination DMs (CRITICAL!)
   @@index([conversationId, deleted, createdAt(sort: Desc)]) // Filter non-deleted DMs với sort
