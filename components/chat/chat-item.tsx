@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, memo } from "react";
-import { Member, MemberRole, Profile } from "@prisma/client";
 import { UserAvatar } from "@/components/user-avatar";
 import { ActionTooltip } from "@/components/ui/action-tooltip";
 import { 
@@ -34,18 +33,31 @@ import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
 import { useModal } from "@/hooks/use-modal-store";
 import { useReplyStore } from "@/hooks/use-reply-store";
 import { getMediaFileName, normalizeMediaUrl } from "@/lib/media-url";
+import { MEMBER_ROLE, type MemberRole } from "@/lib/client-prisma";
+
+interface ChatMember {
+    id: string;
+    role: MemberRole;
+    profile: {
+        name: string;
+        imageUrl: string;
+    };
+}
+
+interface CurrentMember {
+    id: string;
+    role: MemberRole;
+}
 
 
 interface ChatItemProps {
     id: string;
     content: string;
-    member: Member & {
-        profile: Profile
-    };
+    member: ChatMember;
     timestamp: string;
     fileUrl: string | null;
     deleted: boolean;
-    currentMember: Member;
+    currentMember: CurrentMember;
     isUpdated: boolean;
     socketUrl: string;
     socketQuery: Record<string, string>;
@@ -135,8 +147,8 @@ const ChatItemComponent = ({
         ? fileName.split('.').pop()?.toLowerCase()
         : undefined;
 
-    const isAdmin = currentMember.role === MemberRole.ADMIN;
-    const isModerator = currentMember.role === MemberRole.MODERATOR;
+    const isAdmin = currentMember.role === MEMBER_ROLE.ADMIN;
+    const isModerator = currentMember.role === MEMBER_ROLE.MODERATOR;
     const isOwner = currentMember.id === member.id;
     const canDeleteMessage = !deleted && (isAdmin || isModerator || isOwner);
     const canEditMessage = !deleted && isOwner && !fileUrl;
