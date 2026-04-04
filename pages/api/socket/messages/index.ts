@@ -4,6 +4,7 @@ import type { NextApiRequest } from 'next';
 import type { NextApiResponseServerIo } from '@/type';
 import { emitChannelMessage } from '@/lib/socket/server';
 import { MemberRole } from '@prisma/client';
+import { canSendMessages, canManageMessages } from '@/lib/channel-permissions';
 
 export default async function handler (
     req: NextApiRequest,
@@ -22,7 +23,7 @@ export default async function handler (
 
         // POST: Create new message
         if (req.method === "POST") {
-            const { content, fileUrl } = req.body;
+            const { content, fileUrl, replyToMessageId } = req.body;
             const { serverId, channelId } = req.body;
 
             if (!serverId) {
@@ -68,12 +69,34 @@ export default async function handler (
                 return res.status(403).json({ error : "You are not a member of this server" });
             }
 
+            // Check if member can send messages in this channel
+            const hasPermission = await canSendMessages(member.id, channel.id);
+            if (!hasPermission) {
+                return res.status(403).json({ error: "You don't have permission to send messages in this channel" });
+            }
+
+            let replyToMessage: { id: string } | null = null;
+            if (replyToMessageId) {
+                replyToMessage = await db.message.findFirst({
+                    where: {
+                        id: String(replyToMessageId),
+                        channelId: channel.id,
+                    },
+                    select: { id: true },
+                });
+
+                if (!replyToMessage) {
+                    return res.status(400).json({ error: "Reply message not found in this channel" });
+                }
+            }
+
             const message = await db.message.create({
                 data: {
                     content,
                     fileUrl,
                     channelId: channel.id,
                     memberId: member.id,
+                    replyToMessageId: replyToMessage?.id,
                 },
                 include: {
                     member: {
@@ -82,6 +105,15 @@ export default async function handler (
                         }
                     },
                     channel: true,
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: {
+                                    profile: true,
+                                },
+                            },
+                        },
+                    },
                 }
             });
 
@@ -195,7 +227,10 @@ export default async function handler (
             const isMessageOwner = message.memberId === member.id;
             const isAdmin = member.role === MemberRole.ADMIN;
             const isModerator = member.role === MemberRole.MODERATOR;
-            const canModify = isMessageOwner || isAdmin || isModerator;
+            
+            // For DELETE/EDIT: Check manage messages permission
+            const hasManagePermission = await canManageMessages(member.id, channel.id);
+            const canModify = isMessageOwner || hasManagePermission;
 
             if (!canModify) {
                 return res.status(401).json({ error: "Unauthorized" });

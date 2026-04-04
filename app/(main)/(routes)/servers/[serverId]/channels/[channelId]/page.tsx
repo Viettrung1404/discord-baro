@@ -5,7 +5,7 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import { ChannelType } from "@prisma/client";
-import { MediaRoom } from "@/components/media-room";
+import { MediaRoomLazy } from "@/components/media-room-lazy";
 interface ChannelIdPageProps {
     params: Promise<{
         serverId: string;
@@ -42,9 +42,11 @@ const ChannelIdPage = async ({
                 name={channel.name}
                 serverId={channel.serverId}
                 type="channel"
+                channelId={channel.id}
             />
             {channel.type == ChannelType.TEXT && (
                <>
+                {/* <div className="flex-1"></div> */}
                 <ChatMessages
                     name={channel.name}
                     member={member}
@@ -71,14 +73,14 @@ const ChannelIdPage = async ({
                </> 
             )}
             {channel.type == ChannelType.AUDIO && (
-                <MediaRoom
+                <MediaRoomLazy
                     chatId={channel.id}
                     video={false}
                     audio={true}
                 />
             )}
             {channel.type == ChannelType.VIDEO && (
-                <MediaRoom
+                <MediaRoomLazy
                     chatId={channel.id}
                     video={true}
                     audio={true}

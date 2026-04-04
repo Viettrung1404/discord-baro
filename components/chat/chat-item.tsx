@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Member, MemberRole, Profile } from "@prisma/client";
 import { UserAvatar } from "@/components/user-avatar";
 import { ActionTooltip } from "@/components/ui/action-tooltip";
@@ -17,8 +17,10 @@ import {
     FileAudio,
     Volume2,
     Play,
+    Pin,
+    PinOff,
+    Reply,
 } from "lucide-react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -30,6 +32,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
 import { useModal } from "@/hooks/use-modal-store";
+import { useReplyStore } from "@/hooks/use-reply-store";
+import { getMediaFileName, normalizeMediaUrl } from "@/lib/media-url";
 
 
 interface ChatItemProps {
@@ -45,6 +49,17 @@ interface ChatItemProps {
     isUpdated: boolean;
     socketUrl: string;
     socketQuery: Record<string, string>;
+    pinned?: boolean;
+    pinnedAt?: Date | null;
+    type?: "channel" | "conversation"; // To determine API endpoint
+    replyTo?: {
+        id: string;
+        content: string;
+        fileUrl?: string | null;
+        deleted: boolean;
+        authorName: string;
+    } | null;
+    onJumpToMessage?: (messageId: string) => Promise<void> | void;
 }
 
 const roleIconMap = {
@@ -57,7 +72,7 @@ const formSchema = z.object({
     content: z.string().min(1)
 });
 
-export const ChatItem = ({
+const ChatItemComponent = ({
     id,
     content,
     member,
@@ -67,11 +82,19 @@ export const ChatItem = ({
     currentMember,
     isUpdated,
     socketUrl,
-    socketQuery
+    socketQuery,
+    pinned = false,
+    pinnedAt = null,
+    type = "channel",
+    replyTo = null,
+    onJumpToMessage,
 }: ChatItemProps) => {
     const [isEditing, setIsEditing] = useState(false);
+    const [isPinning, setIsPinning] = useState(false);
     const { onOpen } = useModal();
     const router = useRouter();
+    const { setReply } = useReplyStore();
+    const safeFileUrl = fileUrl ? normalizeMediaUrl(fileUrl) : null;
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -107,21 +130,29 @@ export const ChatItem = ({
 
     const isLoading = form.formState.isSubmitting;
 
-    const fileType = fileUrl?.split('.').pop()?.toLowerCase();
-    const fileName = fileUrl?.split('/').pop() || 'file';
+    const fileName = fileUrl ? getMediaFileName(fileUrl) : 'file';
+    const fileType = fileName.includes('.')
+        ? fileName.split('.').pop()?.toLowerCase()
+        : undefined;
 
     const isAdmin = currentMember.role === MemberRole.ADMIN;
     const isModerator = currentMember.role === MemberRole.MODERATOR;
     const isOwner = currentMember.id === member.id;
     const canDeleteMessage = !deleted && (isAdmin || isModerator || isOwner);
     const canEditMessage = !deleted && isOwner && !fileUrl;
+    const canPinMessage = !deleted && (isAdmin || isModerator); // Only ADMIN/MODERATOR can pin
+    const canReply = !deleted;
 
     // File type checks
-    const isImage = fileType && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(fileType);
-    const isVideo = fileType && ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(fileType);
-    const isAudio = fileType && ['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(fileType);
-    const isPDF = fileType === 'pdf';
-    const isDocument = fileType && ['doc', 'docx', 'txt', 'rtf'].includes(fileType);
+    const originalFileType = fileName.includes('.')
+        ? fileName.split('.').pop()?.toLowerCase()
+        : undefined;
+
+    const isImage = originalFileType && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(originalFileType);
+    const isVideo = originalFileType && ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(originalFileType);
+    const isAudio = originalFileType && ['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(originalFileType);
+    const isPDF = originalFileType === 'pdf';
+    const isDocument = originalFileType && ['doc', 'docx', 'txt', 'rtf'].includes(originalFileType);
 
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -143,6 +174,31 @@ export const ChatItem = ({
         }
     };
 
+    const handlePinToggle = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        try {
+            setIsPinning(true);
+            
+            // Use different API endpoint based on type
+            const pinEndpoint = type === "conversation" 
+                ? `/api/direct-messages/${id}/pin`
+                : `/api/messages/${id}/pin`;
+            
+            if (pinned) {
+                await axios.delete(pinEndpoint);
+            } else {
+                await axios.post(pinEndpoint);
+            }
+            router.refresh();
+        } catch (error) {
+            console.error("Failed to toggle pin:", error);
+        } finally {
+            setIsPinning(false);
+        }
+    };
+
     const getFileIcon = () => {
         if (isImage) return <FileImage className="h-10 w-10 text-blue-500" />;
         if (isVideo) return <FileVideo className="h-10 w-10 text-purple-500" />;
@@ -157,8 +213,47 @@ export const ChatItem = ({
         return "File";
     };
 
+    const onReply = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const contextId = type === "channel"
+            ? String(socketQuery.channelId || "")
+            : String(socketQuery.conversationId || "");
+
+        if (!contextId) {
+            return;
+        }
+
+        setReply({
+            id,
+            content,
+            fileUrl,
+            memberName: member.profile.name,
+            type,
+            contextId,
+        });
+    };
+
+    const jumpToRepliedMessage = async () => {
+        if (!replyTo) {
+            return;
+        }
+
+        if (onJumpToMessage) {
+            await onJumpToMessage(replyTo.id);
+            return;
+        }
+
+        const target = document.getElementById(`message-${replyTo.id}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
     return (
-        <div className="relative group flex items-start hover:bg-black/5 dark:hover:bg-zinc-700/10 p-4 transition w-full">
+        <div 
+            id={`message-${id}`}
+            className="relative group flex items-start hover:bg-black/5 dark:hover:bg-zinc-700/10 p-4 transition w-full"
+        >
             {/* Avatar */}
             <div 
                 onClick={onMemberClick}
@@ -193,6 +288,22 @@ export const ChatItem = ({
                 </div>
 
                 {/* Message Content */}
+                {!deleted && replyTo && (
+                    <button
+                        type="button"
+                        onClick={jumpToRepliedMessage}
+                        className="mt-2 text-left border-l-2 border-zinc-300 dark:border-zinc-600 pl-3 py-1 bg-zinc-100/70 dark:bg-zinc-800/40 rounded-r-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                    >
+                        <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                            Đang trả lời {replyTo.authorName}
+                        </p>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[360px]">
+                            {replyTo.deleted
+                                ? "This message has been deleted."
+                                : replyTo.content || (replyTo.fileUrl ? "Attachment" : "Message")}
+                        </p>
+                    </button>
+                )}
                 {!deleted && !isEditing && (
                     <p className={cn(
                         "text-sm text-zinc-600 dark:text-zinc-300 mt-1",
@@ -244,21 +355,20 @@ export const ChatItem = ({
                 )}
 
                 {/* File Attachments */}
-                {fileUrl && !deleted && (
+                {safeFileUrl && !deleted && (
                     <div className="mt-2">
                         {/* Image Preview */}
                         {isImage && (
-                            <a 
-                                href={fileUrl}
+                            <a
+                                title="View Image"
+                                href={safeFileUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="relative aspect-square rounded-md overflow-hidden border flex items-center bg-secondary max-w-sm group/image"
                             >
-                                <Image
-                                    src={fileUrl}
+                                <img
+                                    src={safeFileUrl}
                                     alt={content || "Image"}
-                                    width={400}
-                                    height={400}
                                     className="object-cover w-full h-full hover:scale-105 transition"
                                 />
                                 <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition flex items-center justify-center">
@@ -275,7 +385,7 @@ export const ChatItem = ({
                                     className="w-full h-auto max-h-96"
                                     preload="metadata"
                                 >
-                                    <source src={fileUrl} type={`video/${fileType}`} />
+                                    <source src={safeFileUrl} type={`video/${originalFileType}`} />
                                     Your browser does not support video playback.
                                 </video>
                             </div>
@@ -290,7 +400,7 @@ export const ChatItem = ({
                                         {fileName}
                                     </p>
                                     <audio controls className="w-full mt-2">
-                                        <source src={fileUrl} type={`audio/${fileType}`} />
+                                        <source src={safeFileUrl} type={`audio/${originalFileType}`} />
                                         Your browser does not support audio playback.
                                     </audio>
                                 </div>
@@ -300,7 +410,7 @@ export const ChatItem = ({
                         {/* PDF Preview */}
                         {isPDF && (
                             <a
-                                href={fileUrl}
+                                href={safeFileUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-x-3 p-3 rounded-md bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition border border-red-200 dark:border-red-900/30 max-w-md group/pdf"
@@ -321,7 +431,7 @@ export const ChatItem = ({
                         {/* Other Documents */}
                         {isDocument && (
                             <a
-                                href={fileUrl}
+                                href={safeFileUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-x-3 p-3 rounded-md bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition border border-blue-200 dark:border-blue-900/30 max-w-md group/doc"
@@ -332,7 +442,7 @@ export const ChatItem = ({
                                         {fileName}
                                     </p>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        {fileType?.toUpperCase()} Document
+                                        {originalFileType?.toUpperCase()} Document
                                     </p>
                                 </div>
                                 <Download className="h-5 w-5 text-blue-600 opacity-0 group-hover/doc:opacity-100 transition flex-shrink-0" />
@@ -342,7 +452,7 @@ export const ChatItem = ({
                         {/* Generic File (fallback) */}
                         {!isImage && !isVideo && !isAudio && !isPDF && !isDocument && (
                             <a
-                                href={fileUrl}
+                                href={safeFileUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-x-3 p-3 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition border max-w-md group/file"
@@ -353,7 +463,7 @@ export const ChatItem = ({
                                         {fileName}
                                     </p>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        {fileType?.toUpperCase() || 'File'}
+                                        {originalFileType?.toUpperCase() || 'File'}
                                     </p>
                                 </div>
                                 <Download className="h-5 w-5 text-zinc-500 opacity-0 group-hover/file:opacity-100 transition flex-shrink-0" />
@@ -363,9 +473,42 @@ export const ChatItem = ({
                 )}
             </div>
 
-            {/* Action Buttons (Edit & Delete) */}
-            {canDeleteMessage && (
+            {/* Action Buttons (Pin, Edit & Delete) */}
+            {(canDeleteMessage || canPinMessage || canReply) && (
                 <div className="hidden group-hover:flex items-center gap-x-2 absolute p-1 -top-2 right-5 bg-white dark:bg-zinc-800 border rounded-sm">
+                    {canReply && (
+                        <ActionTooltip label="Reply">
+                            <Reply
+                                onClick={onReply}
+                                className="cursor-pointer ml-auto w-4 h-4 text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 transition"
+                            />
+                        </ActionTooltip>
+                    )}
+                    {canPinMessage && (
+                        <ActionTooltip label={pinned ? "Unpin" : "Pin"}>
+                            {pinned ? (
+                                <PinOff
+                                    onClick={(e) => {
+                                        if (!isPinning) handlePinToggle(e);
+                                    }}
+                                    className={cn(
+                                        "cursor-pointer ml-auto w-4 h-4 text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition",
+                                        isPinning && "opacity-50 cursor-not-allowed"
+                                    )}
+                                />
+                            ) : (
+                                <Pin
+                                    onClick={(e) => {
+                                        if (!isPinning) handlePinToggle(e);
+                                    }}
+                                    className={cn(
+                                        "cursor-pointer ml-auto w-4 h-4 text-zinc-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition",
+                                        isPinning && "opacity-50 cursor-not-allowed"
+                                    )}
+                                />
+                            )}
+                        </ActionTooltip>
+                    )}
                     {canEditMessage && (
                         <ActionTooltip label="Edit">
                             <Edit
@@ -374,18 +517,23 @@ export const ChatItem = ({
                             />
                         </ActionTooltip>
                     )}
-                    <ActionTooltip label="Delete">
-                        <Trash
-                            onClick={() => onOpen("deleteMessage", {
-                                apiUrl: socketUrl,
-                                query: socketQuery,
-                                messageId: id,
-                            })}
-                            className="cursor-pointer ml-auto w-4 h-4 text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 transition"
-                        />
-                    </ActionTooltip>
+                    {canDeleteMessage && (
+                        <ActionTooltip label="Delete">
+                            <Trash
+                                onClick={() => onOpen("deleteMessage", {
+                                    apiUrl: socketUrl,
+                                    query: socketQuery,
+                                    messageId: id,
+                                })}
+                                className="cursor-pointer ml-auto w-4 h-4 text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 transition"
+                            />
+                        </ActionTooltip>
+                    )}
                 </div>
             )}
         </div>
     );
 };
+
+// Export memoized version để tối ưu performance
+export const ChatItem = memo(ChatItemComponent);

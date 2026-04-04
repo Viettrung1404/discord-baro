@@ -1,7 +1,7 @@
 import { currentProfile } from "@/lib/current-profile";
 import { db } from "@/lib/db";
-import { Message } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { canViewChannel } from "@/lib/channel-permissions";
 
 
 const MESSAGES_BATCH = 10;
@@ -23,7 +23,38 @@ export async function GET(
             return new NextResponse("Channel ID is missing", { status: 400 });
         }
 
-        let messages: Message[] = [];
+        // Get member ID to check permissions
+        const channel = await db.channel.findUnique({
+            where: { id: channelId },
+            include: {
+                server: {
+                    include: {
+                        members: {
+                            where: {
+                                profileId: profile.id
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!channel) {
+            return new NextResponse("Channel not found", { status: 404 });
+        }
+
+        const member = channel.server.members[0];
+        if (!member) {
+            return new NextResponse("Not a member of this server", { status: 403 });
+        }
+
+        // Check if member can view this channel
+        const hasAccess = await canViewChannel(member.id, channelId);
+        if (!hasAccess) {
+            return new NextResponse("You don't have permission to view this channel", { status: 403 });
+        }
+
+        let messages = [];
         if ( cursor ) {
             messages = await db.message.findMany({
                 take: MESSAGES_BATCH,
@@ -33,7 +64,14 @@ export async function GET(
                 include: {
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });
@@ -47,7 +85,14 @@ export async function GET(
                 include: { 
                     member: {
                         include: { profile: true }
-                    }
+                    },
+                    replyToMessage: {
+                        include: {
+                            member: {
+                                include: { profile: true }
+                            }
+                        }
+                    },
                 },
                 orderBy: { createdAt: 'desc' }
             });
