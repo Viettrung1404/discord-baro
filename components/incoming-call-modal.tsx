@@ -14,10 +14,15 @@ export const IncomingCallModal = () => {
   const router = useRouter();
   const [isAccepting, setIsAccepting] = useState(false);
 
-  const resolveCallerMemberId = async (conversationId: string, callerId: string) => {
-    const params = new URLSearchParams({ callerProfileId: callerId });
+  const resolveCallerMember = async (conversationId: string, callerId?: string) => {
+    const params = new URLSearchParams();
+    if (callerId) {
+      params.set("callerProfileId", callerId);
+    }
+
+    const queryString = params.toString();
     const response = await fetch(
-      `/api/conversations/${conversationId}/caller-member?${params.toString()}`,
+      `/api/conversations/${conversationId}/caller-member${queryString ? `?${queryString}` : ""}`,
       { cache: "no-store" }
     );
 
@@ -25,8 +30,8 @@ export const IncomingCallModal = () => {
       return undefined;
     }
 
-    const data = (await response.json()) as { callerMemberId?: string };
-    return data.callerMemberId;
+    const data = (await response.json()) as { callerMemberId?: string; serverId?: string };
+    return data;
   };
 
   const handleAccept = async () => {
@@ -37,29 +42,41 @@ export const IncomingCallModal = () => {
     }
 
     setIsAccepting(true);
-    acceptCall();
 
-    let callerMemberId: string | undefined = incomingCall.callerMemberId;
-    if (!callerMemberId) {
-      callerMemberId = await resolveCallerMemberId(
-        incomingCall.conversationId,
-        incomingCall.callerId
+    try {
+      const call = incomingCall;
+      let callerMemberId = call.callerMemberId;
+      let serverId = call.serverId;
+
+      if ((!callerMemberId || !serverId) && call.conversationId) {
+        const resolved = await resolveCallerMember(call.conversationId, call.callerId);
+        if (!callerMemberId) {
+          callerMemberId = resolved?.callerMemberId;
+        }
+        if (!serverId) {
+          serverId = resolved?.serverId;
+        }
+      }
+
+      if (!callerMemberId || !serverId) {
+        console.error("Unable to resolve caller route for incoming call", {
+          incomingCall: call,
+          resolvedCallerMemberId: callerMemberId,
+          resolvedServerId: serverId,
+        });
+        return;
+      }
+
+      acceptCall();
+
+      // Navigate tới conversation với video=true
+      // Route expects [memberId] parameter
+      router.push(
+        `/servers/${serverId}/conversations/${callerMemberId}?video=true`
       );
-    }
-
-    if (!callerMemberId) {
-      console.error("Unable to resolve caller member id for incoming call", incomingCall);
+    } finally {
       setIsAccepting(false);
-      return;
     }
-
-    // Navigate tới conversation với video=true
-    // Route expects [memberId] parameter
-    router.push(
-      `/servers/${incomingCall.serverId}/conversations/${callerMemberId}?video=true`
-    );
-
-    setIsAccepting(false);
   };
 
   const handleDecline = () => {
@@ -95,7 +112,7 @@ export const IncomingCallModal = () => {
         {/* Caller info */}
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-black dark:text-white mb-2">
-            {incomingCall.callerName}
+            {incomingCall.callerName || "Unknown"}
           </h2>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Incoming video call...

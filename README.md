@@ -25,45 +25,53 @@ A Discord clone built with Next.js 15, TypeScript, Prisma, and Clerk authenticat
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - Docker và Docker Compose
 - Clerk account for authentication
 
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/discord-baro.git
 cd discord-baro
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Set up environment variables:
+
 ```bash
 cp .env.example .env.local
 ```
+
 Edit `.env.local` with your actual values.
 
 4. Start Docker services (PostgreSQL + MinIO):
+
 ```bash
 npm run docker:up
 ```
 
 5. Set up the database:
+
 ```bash
 npm run db:migrate
 ```
 
 6. Run the development server:
+
 ```bash
 npm run dev
 ```
 
 Or run everything at once:
+
 ```bash
 npm run dev:full
 ```
@@ -71,6 +79,7 @@ npm run dev:full
 ## Docker Services
 
 This project uses Docker Compose to run:
+
 - **PostgreSQL**: Database on port 5432
 - **MinIO**: Object storage on port 9000 (API) and 9001 (Console)
 
@@ -80,7 +89,7 @@ This project uses Docker Compose to run:
 # Start all services
 npm run docker:up
 
-# Stop all services  
+# Stop all services
 npm run docker:down
 
 # View logs
@@ -91,7 +100,9 @@ npm run docker:restart
 ```
 
 ### MinIO Console
+
 Access MinIO console at: http://localhost:9001
+
 - Username: `minioadmin`
 - Password: `minioadmin123`
 
@@ -125,3 +136,16 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Realtime note for Vercel
+
+This project uses Socket.IO with in-memory rooms/presence. Vercel serverless functions are not a persistent Socket.IO runtime, so your UI may stay in fallback polling mode unless you use an external realtime server.
+
+Set these environment variables:
+
+```env
+NEXT_PUBLIC_APP_URL=https://your-vercel-app.vercel.app
+NEXT_PUBLIC_SOCKET_URL=https://your-realtime-server.example.com
+```
+
+`NEXT_PUBLIC_SOCKET_URL` must point to a persistent Node server that hosts the Socket.IO endpoint at `/api/socket/io`.

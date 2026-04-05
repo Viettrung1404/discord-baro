@@ -4,6 +4,7 @@ import type { NextApiRequest } from 'next';
 import type { NextApiResponseServerIo } from '@/type';
 import { emitChannelMessage } from '@/lib/socket/server';
 import { MemberRole } from '@prisma/client';
+import { publishChatMessage } from '@/lib/socket/realtime-publisher';
 
 export default async function handler(
     req: NextApiRequest,
@@ -143,6 +144,11 @@ export default async function handler(
 
             // Emit update to all clients
             emitChannelMessage(channel.id, message);
+            await publishChatMessage({
+                room: `channel:${channel.id}`,
+                channelId: channel.id,
+                message,
+            });
 
             return res.status(200).json(message);
         }
@@ -187,6 +193,11 @@ export default async function handler(
 
             // Emit update to all clients
             emitChannelMessage(channel.id, message);
+            await publishChatMessage({
+                room: `channel:${channel.id}`,
+                channelId: channel.id,
+                message,
+            });
 
             return res.status(200).json(message);
         }

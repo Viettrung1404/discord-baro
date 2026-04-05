@@ -79,7 +79,15 @@ export type ServerToClientEvents = {
     callId: string;
     conversationId: string;
   }) => void;
+  "call:accept": (payload: {
+    callId: string;
+    conversationId: string;
+  }) => void;
   "call:declined": (payload: {
+    callId: string;
+    conversationId: string;
+  }) => void;
+  "call:decline": (payload: {
     callId: string;
     conversationId: string;
   }) => void;
@@ -118,6 +126,8 @@ export type ClientToServerEvents = {
   }) => void;
   "call:initiate": (payload: {
     conversationId: string;
+    serverId?: string;
+    callerMemberId?: string;
     calleeId: string;
     callerName: string;
     callerAvatar?: string;
