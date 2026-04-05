@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 
     const userIds = users.map((u) => u.id);
 
-    const [friendships, sentRequests, receivedRequests] = await Promise.all([
+    const [friendships, sentRequests, receivedRequests] = await db.$transaction([
       db.friendship.findMany({
         where: {
           OR: [

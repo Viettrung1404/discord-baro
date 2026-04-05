@@ -201,7 +201,7 @@ model Message {
   @@index([channelId]) // Lấy messages trong channel
   @@index([memberId]) // Lấy messages của member
   @@index([replyToMessageId]) // Resolve replied message quickly
-  @@index([pinned, channelId]) // For querying pinned messages in a channel
+  @@index([channelId, pinned, deleted, pinnedAt(sort: Desc)], map: "Message_channel_pinned_active_pinnedAt_idx") // Pinned query + sort optimization
   @@index([channelId, createdAt(sort: Desc)]) // Composite: Pagination messages (CRITICAL!)
   @@index([channelId, deleted, createdAt(sort: Desc)]) // Filter non-deleted messages với sort
   @@index([memberId, createdAt(sort: Desc)]) // Member's message history
@@ -258,7 +258,7 @@ model DirectMessage {
   @@index([memberId]) // Lấy messages của member
   @@index([conversationId]) // Lấy messages trong conversation
   @@index([replyToDirectMessageId]) // Resolve replied DM quickly
-  @@index([pinned, conversationId]) // For querying pinned messages in a conversation
+  @@index([conversationId, pinned, deleted, pinnedAt(sort: Desc)], map: "DirectMessage_conversation_pinned_active_pinnedAt_idx") // Pinned DM query + sort optimization
   @@index([conversationId, createdAt(sort: Desc)]) // Composite: Pagination DMs (CRITICAL!)
   @@index([conversationId, deleted, createdAt(sort: Desc)]) // Filter non-deleted DMs với sort
   @@index([memberId, createdAt(sort: Desc)]) // Member's DM history

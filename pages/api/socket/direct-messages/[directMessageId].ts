@@ -135,7 +135,7 @@ export default async function handler(
                 channelId: conversation.id,
                 message
             });
-            await publishChatMessage({
+            void publishChatMessage({
                 room: conversationKey,
                 channelId: conversation.id,
                 message,
@@ -183,7 +183,7 @@ export default async function handler(
                 channelId: conversation.id,
                 message
             });
-            await publishChatMessage({
+            void publishChatMessage({
                 room: conversationKey,
                 channelId: conversation.id,
                 message,

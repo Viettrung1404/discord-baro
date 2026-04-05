@@ -27,6 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import axios from "axios";
 import qs from "query-string";
+import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
@@ -105,6 +106,7 @@ const ChatItemComponent = ({
     const [isPinning, setIsPinning] = useState(false);
     const { onOpen } = useModal();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { setReply } = useReplyStore();
     const safeFileUrl = fileUrl ? normalizeMediaUrl(fileUrl) : null;
     
@@ -203,6 +205,17 @@ const ChatItemComponent = ({
             } else {
                 await axios.post(pinEndpoint);
             }
+
+            const pinnedTargetId = type === "conversation"
+                ? socketQuery.conversationId
+                : socketQuery.channelId;
+
+            if (pinnedTargetId) {
+                void queryClient.invalidateQueries({
+                    queryKey: ["pinnedCount", type, pinnedTargetId],
+                });
+            }
+
             router.refresh();
         } catch (error) {
             console.error("Failed to toggle pin:", error);

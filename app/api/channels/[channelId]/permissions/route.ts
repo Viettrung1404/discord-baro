@@ -150,15 +150,26 @@ export async function POST(
     }
 
     const { channelId } = await params;
-    const { 
-      memberId, 
-      canView = true, 
+    const body = await req.json();
+    const {
+      memberId,
+      memberIds,
+      canView = true,
       canSendMessages = true,
       canManageMessages = false,
-      canInviteMembers = false 
-    } = await req.json();
+      canInviteMembers = false,
+    } = body ?? {};
 
-    if (!memberId) {
+    const requestedMemberIds = [
+      ...(Array.isArray(memberIds) ? memberIds : []),
+      ...(typeof memberId === "string" ? [memberId] : []),
+    ]
+      .map((id) => (typeof id === "string" ? id.trim() : ""))
+      .filter(Boolean);
+
+    const uniqueMemberIds = Array.from(new Set(requestedMemberIds));
+
+    if (uniqueMemberIds.length === 0) {
       return new NextResponse("Member ID required", { status: 400 });
     }
 
@@ -187,38 +198,94 @@ export async function POST(
       return new NextResponse("Forbidden - Admin only", { status: 403 });
     }
 
-    // Create or update permission
-    const permission = await db.channelPermission.upsert({
+    const targetMembers = await db.member.findMany({
       where: {
-        channelId_memberId: {
+        id: {
+          in: uniqueMemberIds,
+        },
+        serverId: channel.serverId,
+      },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    const targetMemberIds = targetMembers
+      .filter((targetMember) => targetMember.role !== MemberRole.ADMIN)
+      .map((targetMember) => targetMember.id);
+
+    if (targetMemberIds.length === 0) {
+      return new NextResponse("No valid members found", { status: 400 });
+    }
+
+    await db.$transaction(async (tx) => {
+      const existingPermissions = await tx.channelPermission.findMany({
+        where: {
           channelId,
-          memberId
-        }
-      },
-      create: {
+          memberId: {
+            in: targetMemberIds,
+          },
+        },
+        select: {
+          memberId: true,
+        },
+      });
+
+      const existingMemberIds = existingPermissions.map((permission) => permission.memberId);
+      const existingMemberIdSet = new Set(existingMemberIds);
+
+      const newMemberIds = targetMemberIds.filter((targetMemberId) => !existingMemberIdSet.has(targetMemberId));
+
+      if (newMemberIds.length > 0) {
+        await tx.channelPermission.createMany({
+          data: newMemberIds.map((targetMemberId) => ({
+            channelId,
+            memberId: targetMemberId,
+            canView,
+            canSendMessages,
+            canManageMessages,
+            canInviteMembers,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      if (existingMemberIds.length > 0) {
+        await tx.channelPermission.updateMany({
+          where: {
+            channelId,
+            memberId: {
+              in: existingMemberIds,
+            },
+          },
+          data: {
+            canView,
+            canSendMessages,
+            canManageMessages,
+            canInviteMembers,
+          },
+        });
+      }
+    });
+
+    const updatedPermissions = await db.channelPermission.findMany({
+      where: {
         channelId,
-        memberId,
-        canView,
-        canSendMessages,
-        canManageMessages,
-        canInviteMembers,
-      },
-      update: {
-        canView,
-        canSendMessages,
-        canManageMessages,
-        canInviteMembers,
+        memberId: {
+          in: targetMemberIds,
+        },
       },
       include: {
         member: {
           include: {
-            profile: true
-          }
-        }
-      }
+            profile: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json({
+    const responseItems = updatedPermissions.map((permission) => ({
       id: permission.id,
       memberId: permission.memberId,
       memberName: permission.member.profile.name,
@@ -226,6 +293,15 @@ export async function POST(
       canSendMessages: permission.canSendMessages,
       canManageMessages: permission.canManageMessages,
       canInviteMembers: permission.canInviteMembers,
+    }));
+
+    if (responseItems.length === 1 && !Array.isArray(memberIds)) {
+      return NextResponse.json(responseItems[0]);
+    }
+
+    return NextResponse.json({
+      items: responseItems,
+      count: responseItems.length,
     });
 
   } catch (error) {

@@ -147,23 +147,24 @@ export default async function handler (
                 }
             }
 
-            await publishChatMessage({
-                room: `channel:${channel.id}`,
-                channelId: channel.id,
-                message,
-            });
-
-            await publishNotification({
-                room: `channel:${channel.id}`,
-                excludeProfileId: member.profileId,
-                notification: {
-                    serverId: member.serverId,
+            void Promise.all([
+                publishChatMessage({
+                    room: `channel:${channel.id}`,
                     channelId: channel.id,
-                    messageId: message.id,
-                    preview: content.slice(0, 120),
-                    senderName: message.member.profile.name,
-                },
-            });
+                    message,
+                }),
+                publishNotification({
+                    room: `channel:${channel.id}`,
+                    excludeProfileId: member.profileId,
+                    notification: {
+                        serverId: member.serverId,
+                        channelId: channel.id,
+                        messageId: message.id,
+                        preview: content.slice(0, 120),
+                        senderName: message.member.profile.name,
+                    },
+                }),
+            ]);
 
             return res.status(200).json(message);
         }
@@ -278,7 +279,7 @@ export default async function handler (
 
                 // Emit update to all clients
                 emitChannelMessage(channel.id, message);
-                await publishChatMessage({
+                void publishChatMessage({
                     room: `channel:${channel.id}`,
                     channelId: channel.id,
                     message,
@@ -318,7 +319,7 @@ export default async function handler (
 
                 // Emit update to all clients
                 emitChannelMessage(channel.id, message);
-                await publishChatMessage({
+                void publishChatMessage({
                     room: `channel:${channel.id}`,
                     channelId: channel.id,
                     message,

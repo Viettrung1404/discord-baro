@@ -52,6 +52,16 @@ cp .env.example .env.local
 
 Edit `.env.local` with your actual values.
 
+Optional: tune database pool for better API throughput on higher traffic.
+
+```env
+PG_POOL_MAX=5
+PG_POOL_MIN=0
+PG_POOL_IDLE_TIMEOUT_MS=10000
+PG_POOL_CONNECT_TIMEOUT_MS=10000
+PG_POOL_MAX_USES=5000
+```
+
 4. Start Docker services (PostgreSQL + MinIO):
 
 ```bash

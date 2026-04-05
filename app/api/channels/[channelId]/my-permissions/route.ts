@@ -12,34 +12,34 @@ export async function GET(
   { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { channelId }] = await Promise.all([currentProfile(), params]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { channelId } = await params;
-
-    // Get channel and member
     const channel = await db.channel.findUnique({
       where: { id: channelId },
-      include: {
-        server: {
-          include: {
-            members: {
-              where: {
-                profileId: profile.id
-              }
-            }
-          }
-        }
-      }
+      select: {
+        id: true,
+        serverId: true,
+      },
     });
 
     if (!channel) {
       return new NextResponse("Channel not found", { status: 404 });
     }
 
-    const member = channel.server.members[0];
+    const member = await db.member.findFirst({
+      where: {
+        serverId: channel.serverId,
+        profileId: profile.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     if (!member) {
       return new NextResponse("Not a member of this server", { status: 403 });
     }

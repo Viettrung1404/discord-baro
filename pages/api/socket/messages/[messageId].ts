@@ -144,7 +144,7 @@ export default async function handler(
 
             // Emit update to all clients
             emitChannelMessage(channel.id, message);
-            await publishChatMessage({
+            void publishChatMessage({
                 room: `channel:${channel.id}`,
                 channelId: channel.id,
                 message,
@@ -193,7 +193,7 @@ export default async function handler(
 
             // Emit update to all clients
             emitChannelMessage(channel.id, message);
-            await publishChatMessage({
+            void publishChatMessage({
                 room: `channel:${channel.id}`,
                 channelId: channel.id,
                 message,
