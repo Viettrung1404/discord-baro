@@ -137,23 +137,24 @@ export default async function handler (
                 }
             }
 
-            await publishChatMessage({
-                room: conversationKey,
-                channelId: conversation.id,
-                message,
-            });
-
-            await publishNotification({
-                room: conversationKey,
-                excludeProfileId: profile.id,
-                notification: {
-                    serverId: "",
+            void Promise.all([
+                publishChatMessage({
+                    room: conversationKey,
                     channelId: conversation.id,
-                    messageId: message.id,
-                    preview: content.slice(0, 120),
-                    senderName: member.profile.name,
-                },
-            });
+                    message,
+                }),
+                publishNotification({
+                    room: conversationKey,
+                    excludeProfileId: profile.id,
+                    notification: {
+                        serverId: "",
+                        channelId: conversation.id,
+                        messageId: message.id,
+                        preview: content.slice(0, 120),
+                        senderName: member.profile.name,
+                    },
+                }),
+            ]);
 
             return res.status(200).json(message);
         }
@@ -256,7 +257,7 @@ export default async function handler (
                     channelId: conversation.id,
                     message
                 });
-                await publishChatMessage({
+                void publishChatMessage({
                     room: conversationKey,
                     channelId: conversation.id,
                     message,
@@ -299,7 +300,7 @@ export default async function handler (
                     channelId: conversation.id,
                     message
                 });
-                await publishChatMessage({
+                void publishChatMessage({
                     room: conversationKey,
                     channelId: conversation.id,
                     message,

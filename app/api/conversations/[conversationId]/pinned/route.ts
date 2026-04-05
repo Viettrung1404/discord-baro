@@ -11,14 +11,15 @@ export async function GET(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { conversationId }] = await Promise.all([
+      currentProfile(),
+      params,
+    ]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = await params;
-
-    // Verify user is part of conversation
     const conversation = await db.conversation.findFirst({
       where: {
         id: conversationId,
@@ -34,33 +35,51 @@ export async function GET(
             }
           }
         ]
-      }
+      },
+      select: {
+        id: true,
+      },
     });
 
     if (!conversation) {
       return new NextResponse("Conversation not found or access denied", { status: 404 });
     }
 
-    // Get all pinned messages
     const pinnedMessages = await db.directMessage.findMany({
       where: {
         conversationId,
         pinned: true,
         deleted: false
       },
-      include: {
+      select: {
+        id: true,
+        content: true,
+        fileUrl: true,
+        pinned: true,
+        pinnedAt: true,
+        createdAt: true,
         member: {
-          include: {
-            profile: true
-          }
-        }
+          select: {
+            id: true,
+            role: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: {
-        pinnedAt: 'desc'
-      }
+      orderBy: [{ pinnedAt: "desc" }, { createdAt: "desc" }],
     });
 
-    return NextResponse.json(pinnedMessages);
+    return NextResponse.json(pinnedMessages, {
+      headers: {
+        "Cache-Control": "private, max-age=5, stale-while-revalidate=30",
+      },
+    });
 
   } catch (error) {
     console.error("[CONVERSATION_PINNED_GET]", error);

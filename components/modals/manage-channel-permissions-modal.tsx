@@ -160,6 +160,40 @@ export const ManageChannelPermissionsModal = () => {
     }
   };
 
+  const handleGrantAllAccess = async () => {
+    if (!channel) return;
+
+    const availableMemberIds = serverMembers
+      .filter(
+        (member) =>
+          !permissionData?.permissions.some((p) => p.memberId === member.id) &&
+          member.role !== MEMBER_ROLE.ADMIN
+      )
+      .map((member) => member.id);
+
+    if (availableMemberIds.length === 0) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await axios.post(`/api/channels/${channel.id}/permissions`, {
+        memberIds: availableMemberIds,
+        canView: true,
+        canSendMessages: true,
+        canManageMessages: false,
+        canInviteMembers: false,
+      });
+
+      setSelectedMemberId("");
+      await fetchPermissions();
+    } catch (error) {
+      console.error("Failed to grant access in bulk:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRevokeAccess = async (memberId: string) => {
     if (!channel) return;
 
@@ -184,6 +218,12 @@ export const ManageChannelPermissionsModal = () => {
     [MEMBER_ROLE.MODERATOR]: <ShieldCheck className="h-4 w-4 text-indigo-500" />,
     [MEMBER_ROLE.ADMIN]: <ShieldAlert className="h-4 w-4 text-rose-500" />,
   };
+
+  const availableMembers = serverMembers.filter(
+    (member) =>
+      !permissionData?.permissions.some((p) => p.memberId === member.id) &&
+      member.role !== MEMBER_ROLE.ADMIN
+  );
 
   return (
     <Dialog open={isModalOpen} onOpenChange={handleClose}>
@@ -289,14 +329,7 @@ export const ManageChannelPermissionsModal = () => {
                       <SelectValue placeholder="Select a member to invite..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {serverMembers
-                        .filter((member) => 
-                          // Filter out members who already have access
-                          !permissionData?.permissions.some(p => p.memberId === member.id) &&
-                          // Filter out ADMINs (they always have access)
-                          member.role !== MEMBER_ROLE.ADMIN
-                        )
-                        .map((member) => (
+                      {availableMembers.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className="flex items-center gap-x-2">
                               {roleIconMap[member.role]}
@@ -304,10 +337,7 @@ export const ManageChannelPermissionsModal = () => {
                             </div>
                           </SelectItem>
                         ))}
-                      {serverMembers.filter((member) => 
-                        !permissionData?.permissions.some(p => p.memberId === member.id) &&
-                        member.role !== MEMBER_ROLE.ADMIN
-                      ).length === 0 && (
+                      {availableMembers.length === 0 && (
                         <SelectItem value="no-members" disabled>
                           No members available to invite
                         </SelectItem>
@@ -325,6 +355,14 @@ export const ManageChannelPermissionsModal = () => {
                     ) : (
                       <UserPlus className="h-4 w-4" />
                     )}
+                  </Button>
+                  <Button
+                    onClick={handleGrantAllAccess}
+                    disabled={loading || availableMembers.length === 0}
+                    variant="secondary"
+                    className="flex-shrink-0"
+                  >
+                    Grant All
                   </Button>
                 </div>
 

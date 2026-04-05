@@ -28,35 +28,40 @@ export async function canViewChannel(
   try {
     const member = await db.member.findUnique({
       where: { id: memberId },
-      include: {
-        channelPermissions: {
-          where: { channelId }
-        }
-      }
+      select: {
+        role: true,
+      },
     });
 
     if (!member) return false;
 
+    // ADMIN always has access
+    if (member.role === MemberRole.ADMIN) return true;
+
     const channel = await db.channel.findUnique({
       where: { id: channelId },
-      include: {
-        channelPermissions: {
-          where: { memberId }
-        }
-      }
+      select: {
+        isPrivate: true,
+        allowedRoles: true,
+      },
     });
 
     if (!channel) return false;
 
-    // ADMIN always has access
-    if (member.role === MemberRole.ADMIN) return true;
-
     // Check if channel is private
     if (channel.isPrivate) {
-      // Check specific permission
-      const permission = channel.channelPermissions[0];
-      if (!permission) return false;
-      return permission.canView;
+      const permission = await db.channelPermission.findUnique({
+        where: {
+          channelId_memberId: {
+            channelId,
+            memberId,
+          },
+        },
+        select: {
+          canView: true,
+        },
+      });
+      return !!permission?.canView;
     }
 
     // Check if member's role is in allowed roles
@@ -77,31 +82,39 @@ export async function canSendMessages(
   try {
     const member = await db.member.findUnique({
       where: { id: memberId },
-      include: {
-        channelPermissions: {
-          where: { channelId }
-        }
-      }
+      select: {
+        role: true,
+      },
     });
 
     if (!member) return false;
 
+    // ADMIN always can send
+    if (member.role === MemberRole.ADMIN) return true;
+
     const channel = await db.channel.findUnique({
       where: { id: channelId },
-      include: {
-        channelPermissions: {
-          where: { memberId }
-        }
-      }
+      select: {
+        isPrivate: true,
+        allowedRoles: true,
+      },
     });
 
     if (!channel) return false;
 
-    // ADMIN always can send
-    if (member.role === MemberRole.ADMIN) return true;
+    // Check specific permission override
+    const permission = await db.channelPermission.findUnique({
+      where: {
+        channelId_memberId: {
+          channelId,
+          memberId,
+        },
+      },
+      select: {
+        canSendMessages: true,
+      },
+    });
 
-    // Check specific permission
-    const permission = channel.channelPermissions[0];
     if (permission) {
       return permission.canSendMessages;
     }
@@ -127,10 +140,8 @@ export async function canManageMessages(
   try {
     const member = await db.member.findUnique({
       where: { id: memberId },
-      include: {
-        channelPermissions: {
-          where: { channelId }
-        }
+      select: {
+        role: true,
       }
     });
 
@@ -141,13 +152,19 @@ export async function canManageMessages(
       return true;
     }
 
-    // Check specific permission
-    const permission = member.channelPermissions[0];
-    if (permission) {
-      return permission.canManageMessages;
-    }
+    const permission = await db.channelPermission.findUnique({
+      where: {
+        channelId_memberId: {
+          channelId,
+          memberId,
+        },
+      },
+      select: {
+        canManageMessages: true,
+      },
+    });
 
-    return false;
+    return !!permission?.canManageMessages;
   } catch (error) {
     console.error("Error checking manage message permission:", error);
     return false;
@@ -223,7 +240,7 @@ export async function grantChannelAccess(
   }
 ) {
   try {
-    return await db.channelPermission.upsert({
+    return db.channelPermission.upsert({
       where: {
         channelId_memberId: {
           channelId,
@@ -251,7 +268,7 @@ export async function revokeChannelAccess(
   memberId: string
 ) {
   try {
-    return await db.channelPermission.delete({
+    return db.channelPermission.delete({
       where: {
         channelId_memberId: {
           channelId,
@@ -276,7 +293,7 @@ export async function updateChannelAccess(
   }
 ) {
   try {
-    return await db.channel.update({
+    return db.channel.update({
       where: { id: channelId },
       data: settings
     });
@@ -294,14 +311,74 @@ export async function getChannelPermissionSummary(
   channelId: string
 ) {
   try {
-    const canView = await canViewChannel(memberId, channelId);
-    const canSend = await canSendMessages(memberId, channelId);
-    const canManage = await canManageMessages(memberId, channelId);
+    const member = await db.member.findUnique({
+      where: {
+        id: memberId,
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    const channel = await db.channel.findUnique({
+      where: {
+        id: channelId,
+      },
+      select: {
+        isPrivate: true,
+        allowedRoles: true,
+      },
+    });
+
+    if (!member || !channel) {
+      return {
+        canView: false,
+        canSendMessages: false,
+        canManageMessages: false,
+        canInviteMembers: false,
+      };
+    }
+
+    if (member.role === MemberRole.ADMIN) {
+      return {
+        canView: true,
+        canSendMessages: true,
+        canManageMessages: true,
+        canInviteMembers: true,
+      };
+    }
+
+    const permission = await db.channelPermission.findUnique({
+      where: {
+        channelId_memberId: {
+          channelId,
+          memberId,
+        },
+      },
+      select: {
+        canView: true,
+        canSendMessages: true,
+        canManageMessages: true,
+        canInviteMembers: true,
+      },
+    });
+
+    const roleAllowed = channel.allowedRoles.includes(member.role);
+    const canManage = member.role === MemberRole.MODERATOR || !!permission?.canManageMessages;
+    const canView = channel.isPrivate ? !!permission?.canView : roleAllowed;
+
+    // Keep previous behavior: explicit permission can override send ability, including public channels.
+    const canSend = permission
+      ? !!permission.canSendMessages
+      : channel.isPrivate
+      ? false
+      : roleAllowed;
 
     return {
       canView,
       canSendMessages: canSend,
       canManageMessages: canManage,
+      canInviteMembers: canManage || !!permission?.canInviteMembers,
     };
   } catch (error) {
     console.error("Error getting permission summary:", error);
@@ -309,6 +386,7 @@ export async function getChannelPermissionSummary(
       canView: false,
       canSendMessages: false,
       canManageMessages: false,
+      canInviteMembers: false,
     };
   }
 }

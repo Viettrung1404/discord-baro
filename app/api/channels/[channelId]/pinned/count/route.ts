@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { MemberRole } from "@prisma/client";
 
 /**
- * GET /api/channels/[channelId]/pinned
- * Get all pinned messages in a channel
+ * GET /api/channels/[channelId]/pinned/count
+ * Fast endpoint to fetch pinned message count.
  */
 export async function GET(
   req: Request,
@@ -48,6 +48,7 @@ export async function GET(
     }
 
     let hasAccess = member.role === MemberRole.ADMIN;
+
     if (!hasAccess) {
       if (channel.isPrivate) {
         const permission = await db.channelPermission.findUnique({
@@ -72,44 +73,24 @@ export async function GET(
       return new NextResponse("You don't have permission to view this channel", { status: 403 });
     }
 
-    const pinnedMessages = await db.message.findMany({
+    const count = await db.message.count({
       where: {
         channelId,
         pinned: true,
         deleted: false,
       },
-      select: {
-        id: true,
-        content: true,
-        fileUrl: true,
-        pinned: true,
-        pinnedAt: true,
-        createdAt: true,
-        member: {
-          select: {
-            id: true,
-            role: true,
-            profile: {
-              select: {
-                id: true,
-                name: true,
-                imageUrl: true,
-              },
-            },
-          },
+    });
+
+    return NextResponse.json(
+      { count },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=10, stale-while-revalidate=60",
         },
-      },
-      orderBy: [{ pinnedAt: "desc" }, { createdAt: "desc" }],
-    });
-
-    return NextResponse.json(pinnedMessages, {
-      headers: {
-        "Cache-Control": "private, max-age=5, stale-while-revalidate=30",
-      },
-    });
-
+      }
+    );
   } catch (error) {
-    console.error("[CHANNEL_PINNED_GET]", error);
+    console.error("[CHANNEL_PINNED_COUNT_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

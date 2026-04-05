@@ -13,38 +13,39 @@ export async function POST(
   { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { messageId }] = await Promise.all([currentProfile(), params]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { messageId } = await params;
-
-    // Get message with channel and server info
     const message = await db.message.findUnique({
       where: { id: messageId },
-      include: {
+      select: {
+        id: true,
+        channelId: true,
         channel: {
-          include: {
-            server: {
-              include: {
-                members: {
-                  where: {
-                    profileId: profile.id
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+          select: {
+            serverId: true,
+          },
+        },
+      },
     });
 
     if (!message) {
       return new NextResponse("Message not found", { status: 404 });
     }
 
-    const member = message.channel.server.members[0];
+    const member = await db.member.findFirst({
+      where: {
+        serverId: message.channel.serverId,
+        profileId: profile.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     if (!member) {
       return new NextResponse("Not a member of this server", { status: 403 });
     }
@@ -89,38 +90,39 @@ export async function DELETE(
   { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { messageId }] = await Promise.all([currentProfile(), params]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { messageId } = await params;
-
-    // Get message with channel and server info
     const message = await db.message.findUnique({
       where: { id: messageId },
-      include: {
+      select: {
+        id: true,
+        channelId: true,
         channel: {
-          include: {
-            server: {
-              include: {
-                members: {
-                  where: {
-                    profileId: profile.id
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+          select: {
+            serverId: true,
+          },
+        },
+      },
     });
 
     if (!message) {
       return new NextResponse("Message not found", { status: 404 });
     }
 
-    const member = message.channel.server.members[0];
+    const member = await db.member.findFirst({
+      where: {
+        serverId: message.channel.serverId,
+        profileId: profile.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     if (!member) {
       return new NextResponse("Not a member of this server", { status: 403 });
     }

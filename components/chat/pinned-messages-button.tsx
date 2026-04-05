@@ -3,8 +3,8 @@
 import { Pin } from "lucide-react";
 import { ActionTooltip } from "@/components/ui/action-tooltip";
 import { useModal } from "@/hooks/use-modal-store";
-import { useEffect, useState } from "react";
 import axios from "axios";
+import { useQuery } from "@tanstack/react-query";
 
 interface PinnedMessagesButtonProps {
   channelId?: string;
@@ -14,37 +14,29 @@ interface PinnedMessagesButtonProps {
 
 export const PinnedMessagesButton = ({ channelId, conversationId, type }: PinnedMessagesButtonProps) => {
   const { onOpen } = useModal();
-  const [pinnedCount, setPinnedCount] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   const targetId = type === "channel" ? channelId : conversationId;
 
-  useEffect(() => {
-    if (!targetId) return;
-    
-    fetchPinnedCount();
-    // Poll every 10 seconds
-    const interval = setInterval(fetchPinnedCount, 10000);
-    return () => clearInterval(interval);
-  }, [targetId]);
+  const { data: pinnedCount = 0 } = useQuery({
+    queryKey: ["pinnedCount", type, targetId],
+    enabled: !!targetId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      if (!targetId) {
+        return 0;
+      }
 
-  const fetchPinnedCount = async () => {
-    if (loading || !targetId) return;
+      const endpoint = type === "channel"
+        ? `/api/channels/${targetId}/pinned/count`
+        : `/api/conversations/${targetId}/pinned/count`;
 
-    try {
-      setLoading(true);
-      const endpoint = type === "channel" 
-        ? `/api/channels/${targetId}/pinned`
-        : `/api/conversations/${targetId}/pinned`;
-      
-      const response = await axios.get(endpoint);
-      setPinnedCount(response.data.length);
-    } catch (error) {
-      console.error("Failed to fetch pinned count:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const response = await axios.get<{ count: number }>(endpoint);
+      return response.data.count ?? 0;
+    },
+  });
 
   return (
     <ActionTooltip label={pinnedCount > 0 ? `${pinnedCount} Pinned Messages` : "No Pinned Messages"}>

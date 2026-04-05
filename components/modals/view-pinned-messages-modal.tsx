@@ -16,6 +16,7 @@ import { Pin, X, Loader2, FileIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { normalizeMediaUrl } from "@/lib/media-url";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PinnedMessage {
   id: string;
@@ -38,6 +39,7 @@ interface PinnedMessage {
 export const ViewPinnedMessagesModal = () => {
   const { isOpen, onClose, type, data } = useModal();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const isModalOpen = isOpen && type === "viewPinnedMessages";
   const { channelId, conversationId, type: chatType = "channel" } = data;
@@ -79,6 +81,13 @@ export const ViewPinnedMessagesModal = () => {
       
       await axios.delete(endpoint);
       await fetchPinnedMessages(); // Refresh list
+
+      if (targetId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["pinnedCount", chatType, targetId],
+        });
+      }
+
       router.refresh();
     } catch (error) {
       console.error("Failed to unpin message:", error);

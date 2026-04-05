@@ -81,14 +81,14 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange
           >
-            <SocketProvider>
-              <PresenceTracker />
-              <IncomingCallModal />
-              <ModalProvider />
-              <QueryProvider>
+            <QueryProvider>
+              <SocketProvider>
+                <PresenceTracker />
+                <IncomingCallModal />
+                <ModalProvider />
                 {children}
-              </QueryProvider>
-            </SocketProvider>
+              </SocketProvider>
+            </QueryProvider>
           </ThemeProvider>
         </body>
       </html>

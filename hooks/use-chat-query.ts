@@ -16,6 +16,7 @@ export const useChatQuery = ({
     paramValue
 }: ChatQueryProps) => {
     const { isConnected } = useSocket();
+    const fallbackPollingInterval = 3000;
     
     const fetchMessages = async ({ pageParam = undefined }) => {
         const url = qs.stringifyUrl({
@@ -45,7 +46,9 @@ export const useChatQuery = ({
         queryKey: [queryKey],
         queryFn: fetchMessages,
         getNextPageParam: (lastPage) => lastPage?.nextCursor,
-        refetchInterval: 1000, 
+        refetchInterval: isConnected ? false : fallbackPollingInterval,
+        refetchOnWindowFocus: !isConnected,
+        staleTime: isConnected ? 15_000 : 0,
         initialPageParam: undefined,
     });
 

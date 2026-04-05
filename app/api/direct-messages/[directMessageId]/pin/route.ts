@@ -11,25 +11,36 @@ export async function POST(
   { params }: { params: Promise<{ directMessageId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { directMessageId }] = await Promise.all([
+      currentProfile(),
+      params,
+    ]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { directMessageId } = await params;
-
-    // Get direct message with conversation info
     const directMessage = await db.directMessage.findUnique({
       where: { id: directMessageId },
-      include: {
+      select: {
+        id: true,
         conversation: {
-          include: {
-            memberOne: true,
-            memberTwo: true
-          }
+          select: {
+            memberOne: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
+            memberTwo: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
+          },
         },
-        member: true
-      }
+      },
     });
 
     if (!directMessage) {
@@ -82,24 +93,36 @@ export async function DELETE(
   { params }: { params: Promise<{ directMessageId: string }> }
 ) {
   try {
-    const profile = await currentProfile();
+    const [profile, { directMessageId }] = await Promise.all([
+      currentProfile(),
+      params,
+    ]);
+
     if (!profile) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { directMessageId } = await params;
-
-    // Get direct message with conversation info
     const directMessage = await db.directMessage.findUnique({
       where: { id: directMessageId },
-      include: {
+      select: {
+        id: true,
         conversation: {
-          include: {
-            memberOne: true,
-            memberTwo: true
-          }
-        }
-      }
+          select: {
+            memberOne: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
+            memberTwo: {
+              select: {
+                id: true,
+                profileId: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!directMessage) {

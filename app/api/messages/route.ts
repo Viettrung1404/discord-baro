@@ -23,27 +23,28 @@ export async function GET(
             return new NextResponse("Channel ID is missing", { status: 400 });
         }
 
-        // Get member ID to check permissions
         const channel = await db.channel.findUnique({
             where: { id: channelId },
-            include: {
-                server: {
-                    include: {
-                        members: {
-                            where: {
-                                profileId: profile.id
-                            }
-                        }
-                    }
-                }
-            }
+            select: {
+                id: true,
+                serverId: true,
+            },
         });
 
         if (!channel) {
             return new NextResponse("Channel not found", { status: 404 });
         }
 
-        const member = channel.server.members[0];
+        const member = await db.member.findFirst({
+            where: {
+                serverId: channel.serverId,
+                profileId: profile.id,
+            },
+            select: {
+                id: true,
+            },
+        });
+
         if (!member) {
             return new NextResponse("Not a member of this server", { status: 403 });
         }
@@ -54,49 +55,24 @@ export async function GET(
             return new NextResponse("You don't have permission to view this channel", { status: 403 });
         }
 
-        let messages = [];
-        if ( cursor ) {
-            messages = await db.message.findMany({
-                take: MESSAGES_BATCH,
-                skip: 1,
-                cursor: { id: cursor },
-                where: { channelId },
-                include: {
-                    member: {
-                        include: { profile: true }
-                    },
-                    replyToMessage: {
-                        include: {
-                            member: {
-                                include: { profile: true }
-                            }
+        const messages = await db.message.findMany({
+            take: MESSAGES_BATCH,
+            ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+            where: { channelId },
+            include: {
+                member: {
+                    include: { profile: true }
+                },
+                replyToMessage: {
+                    include: {
+                        member: {
+                            include: { profile: true }
                         }
-                    },
+                    }
                 },
-                orderBy: { createdAt: 'desc' }
-            });
-        }
-        else {
-            messages = await db.message.findMany({
-                take: MESSAGES_BATCH,
-                where: {
-                    channelId,
-                },
-                include: { 
-                    member: {
-                        include: { profile: true }
-                    },
-                    replyToMessage: {
-                        include: {
-                            member: {
-                                include: { profile: true }
-                            }
-                        }
-                    },
-                },
-                orderBy: { createdAt: 'desc' }
-            });
-        }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
         
         let nextCursor= null;
         if ( messages.length === MESSAGES_BATCH ) {
