@@ -3,11 +3,11 @@ import { useSocket } from "@/components/providers/socket-provider";
 
 export interface IncomingCall {
   callId: string;
-  callerId: string;
+  callerId?: string;
   callerMemberId?: string;
-  callerName: string;
+  callerName?: string;
   callerAvatar?: string;
-  serverId: string;
+  serverId?: string;
   conversationId: string;
   timestamp: number;
 }
@@ -18,6 +18,58 @@ type IncomingCallHandler = (call: IncomingCall) => void;
  * Hook để listen incoming call từ Socket.IO
  * Trả về current call, handler accept/decline
  */
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === "string" && value.trim().length > 0;
+};
+
+const normalizeIncomingCall = (raw: unknown): IncomingCall | null => {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const payload = raw as Record<string, unknown>;
+  const conversationId = isNonEmptyString(payload.conversationId)
+    ? payload.conversationId
+    : "";
+  const callerId = isNonEmptyString(payload.callerId)
+    ? payload.callerId
+    : undefined;
+  const callerMemberId = isNonEmptyString(payload.callerMemberId)
+    ? payload.callerMemberId
+    : undefined;
+
+  if (!conversationId || (!callerId && !callerMemberId)) {
+    return null;
+  }
+
+  const callId = isNonEmptyString(payload.callId)
+    ? payload.callId
+    : `call-${Date.now()}`;
+  const callerName = isNonEmptyString(payload.callerName)
+    ? payload.callerName
+    : undefined;
+  const callerAvatar = isNonEmptyString(payload.callerAvatar)
+    ? payload.callerAvatar
+    : undefined;
+  const serverId = isNonEmptyString(payload.serverId)
+    ? payload.serverId
+    : undefined;
+  const timestamp = typeof payload.timestamp === "number" && Number.isFinite(payload.timestamp)
+    ? payload.timestamp
+    : Date.now();
+
+  return {
+    callId,
+    callerId,
+    callerMemberId,
+    callerName,
+    callerAvatar,
+    serverId,
+    conversationId,
+    timestamp,
+  };
+};
+
 export const useIncomingCallSocket = () => {
   const { socket } = useSocket();
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
@@ -27,7 +79,13 @@ export const useIncomingCallSocket = () => {
       return;
     }
 
-    const handleIncomingCall = (call: IncomingCall) => {
+    const handleIncomingCall = (rawCall: unknown) => {
+      const call = normalizeIncomingCall(rawCall);
+      if (!call) {
+        console.warn("[incoming-call] Ignored malformed call:incoming payload", rawCall);
+        return;
+      }
+
       setIncomingCall(call);
       
       // Play ringtone sound
@@ -48,12 +106,14 @@ export const useIncomingCallSocket = () => {
 
     socket.on("call:incoming", handleIncomingCall);
     socket.on("call:declined", handleCallDeclined);
+    socket.on("call:decline", handleCallDeclined);
     socket.on("call:cancelled", handleCallCancelled);
     socket.on("call:ended", handleCallEnded);
 
     return () => {
       socket.off("call:incoming", handleIncomingCall);
       socket.off("call:declined", handleCallDeclined);
+      socket.off("call:decline", handleCallDeclined);
       socket.off("call:cancelled", handleCallCancelled);
       socket.off("call:ended", handleCallEnded);
     };

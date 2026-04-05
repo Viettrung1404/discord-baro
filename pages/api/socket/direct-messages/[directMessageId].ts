@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import type { NextApiRequest } from 'next';
 import type { NextApiResponseServerIo } from '@/type';
 import { SOCKET_EVENTS } from '@/lib/socket/constants';
+import { publishChatMessage } from '@/lib/socket/realtime-publisher';
 
 export default async function handler(
     req: NextApiRequest,
@@ -134,6 +135,11 @@ export default async function handler(
                 channelId: conversation.id,
                 message
             });
+            await publishChatMessage({
+                room: conversationKey,
+                channelId: conversation.id,
+                message,
+            });
 
             return res.status(200).json(message);
         }
@@ -176,6 +182,11 @@ export default async function handler(
             res?.socket?.server?.io?.to(conversationKey).emit(SOCKET_EVENTS.CHAT_MESSAGE, {
                 channelId: conversation.id,
                 message
+            });
+            await publishChatMessage({
+                room: conversationKey,
+                channelId: conversation.id,
+                message,
             });
 
             return res.status(200).json(message);

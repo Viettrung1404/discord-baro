@@ -8,11 +8,13 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { useUser } from "@clerk/nextjs";
 
 interface ChatVideoButtonProps {
+  serverId?: string;
+  callerMemberId?: string;
   conversationId?: string;
   memberId?: string;
 }
 
-export const ChatVideoButton = ({ conversationId, memberId }: ChatVideoButtonProps) => {
+export const ChatVideoButton = ({ serverId, callerMemberId, conversationId, memberId }: ChatVideoButtonProps) => {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,6 +117,8 @@ export const ChatVideoButton = ({ conversationId, memberId }: ChatVideoButtonPro
       try {
         socket.emit("call:initiate", {
           conversationId,
+          serverId,
+          callerMemberId,
           calleeId: memberId,
           callerName:
             user.firstName ||
@@ -149,7 +153,7 @@ export const ChatVideoButton = ({ conversationId, memberId }: ChatVideoButtonPro
       setIsLoading(false);
       router.push(url);
     }
-  }, [isVideo, conversationId, memberId, socket, user, pathname, router, emitEndCall]);
+  }, [isVideo, conversationId, memberId, callerMemberId, serverId, socket, user, pathname, router, emitEndCall]);
 
   const Icon = isVideo ? VideoOff : Video;
   const tooltipLabel = isVideo

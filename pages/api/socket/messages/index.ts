@@ -5,6 +5,7 @@ import type { NextApiResponseServerIo } from '@/type';
 import { emitChannelMessage } from '@/lib/socket/server';
 import { MemberRole } from '@prisma/client';
 import { canSendMessages, canManageMessages } from '@/lib/channel-permissions';
+import { publishChatMessage, publishNotification } from '@/lib/socket/realtime-publisher';
 
 export default async function handler (
     req: NextApiRequest,
@@ -146,6 +147,24 @@ export default async function handler (
                 }
             }
 
+            await publishChatMessage({
+                room: `channel:${channel.id}`,
+                channelId: channel.id,
+                message,
+            });
+
+            await publishNotification({
+                room: `channel:${channel.id}`,
+                excludeProfileId: member.profileId,
+                notification: {
+                    serverId: member.serverId,
+                    channelId: channel.id,
+                    messageId: message.id,
+                    preview: content.slice(0, 120),
+                    senderName: message.member.profile.name,
+                },
+            });
+
             return res.status(200).json(message);
         }
 
@@ -259,6 +278,11 @@ export default async function handler (
 
                 // Emit update to all clients
                 emitChannelMessage(channel.id, message);
+                await publishChatMessage({
+                    room: `channel:${channel.id}`,
+                    channelId: channel.id,
+                    message,
+                });
 
                 return res.status(200).json(message);
             }
@@ -294,6 +318,11 @@ export default async function handler (
 
                 // Emit update to all clients
                 emitChannelMessage(channel.id, message);
+                await publishChatMessage({
+                    room: `channel:${channel.id}`,
+                    channelId: channel.id,
+                    message,
+                });
 
                 return res.status(200).json(message);
             }

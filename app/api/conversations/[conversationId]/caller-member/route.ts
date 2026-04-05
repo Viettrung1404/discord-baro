@@ -19,10 +19,6 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const callerProfileId = searchParams.get("callerProfileId")?.trim();
 
-    if (!callerProfileId) {
-      return new NextResponse("callerProfileId is required", { status: 400 });
-    }
-
     const conversation = await db.conversation.findFirst({
       where: {
         id: conversationId,
@@ -44,12 +40,14 @@ export async function GET(
           select: {
             id: true,
             profileId: true,
+            serverId: true,
           },
         },
         memberTwo: {
           select: {
             id: true,
             profileId: true,
+            serverId: true,
           },
         },
       },
@@ -61,12 +59,15 @@ export async function GET(
       });
     }
 
-    const callerMember =
-      conversation.memberOne.profileId === callerProfileId
+    const callerMember = callerProfileId
+      ? conversation.memberOne.profileId === callerProfileId
         ? conversation.memberOne
         : conversation.memberTwo.profileId === callerProfileId
           ? conversation.memberTwo
-          : null;
+          : null
+      : conversation.memberOne.profileId === profile.id
+        ? conversation.memberTwo
+        : conversation.memberOne;
 
     if (!callerMember) {
       return new NextResponse("Caller member not found", { status: 404 });
@@ -74,6 +75,7 @@ export async function GET(
 
     return NextResponse.json({
       callerMemberId: callerMember.id,
+      serverId: callerMember.serverId,
     });
   } catch (error) {
     console.error("[CONVERSATION_CALLER_MEMBER_GET]", error);
